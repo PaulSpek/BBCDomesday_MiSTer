@@ -20,16 +20,16 @@ contract again.
 The first Domesday-specific RTL boundary is now present in
 `rtl/domesday/domesday_bridge.sv`:
 
-- MiSTer virtual disk slot 3 accepts `.DLV` LaserDisc images;
+- MiSTer virtual disk slot 3 accepts native Pi1MHz `.PVF` LaserDisc images;
 - mount/unmount events and image size are latched independently of the BBC
   floppy and MMFS slots;
-- the bridge performs no media reads yet, so BBC video, audio, CPU, and memory
-  behaviour remain unchanged;
-- an optional OSD setting shows the latched disc state on the user LED.
+- sector zero is read and the PVF1 magic, version, geometry, timing, index/data
+  offsets, frame count, and maximum access-unit size are validated;
+- an optional OSD setting lights the user LED only for a valid PVF header.
 
-This isolates the next transplant: Picmatic's DLV streamer, JPEG decoder, and
-DDR3 framebuffer can take ownership of the established slot without changing
-the existing BBC storage interfaces again.
+This isolates the next stage: PVF index/record streaming and the HPS H.264
+decode benchmark can use the established slot without changing the existing
+BBC storage interfaces again.
 
 ## Upstream relationship
 
@@ -46,8 +46,8 @@ outside the repository.
 
 1. Build this branch on the STUDEER Quartus host.
 2. Confirm the RBF still boots BBC Master 128 on MiSTer.
-3. Mount a `.DLV` through the new OSD entry and confirm the optional Domesday
-   status LED follows mount/unmount state.
+3. Mount a `.PVF` through the new OSD entry and confirm the optional Domesday
+   status LED lights only after its PVF1 header has been read and validated.
 4. Record resource/timing output with `MISTER_FB` enabled but inactive.
-5. Add the Picmatic `.dlv` streamer and JPEG decoder behind the new feature
-   boundary, then re-measure before enabling the compositor.
+5. Add PVF index/record streaming and benchmark native H.264 decode before
+   enabling the compositor.

@@ -203,7 +203,7 @@ assign FB_PAL_WR      = 1'b0;
 `endif
  
 assign LED_USER  = ioctl_download | (vsd_sel & sd_act) |
-                   (status[DOMESDAY_DIAG_OPT] & domesday_disc_present);
+                   (status[DOMESDAY_DIAG_OPT] & domesday_pvf_valid);
 assign LED_DISK  = {1'b1,~vsd_sel & sd_act};
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
@@ -272,7 +272,7 @@ parameter CONF_STR = {
 	"h0S0,VHDIMGMMB;", // Allow .VHD or .MMB files to be loaded (MMFSv1) or .IMG (MMFS v2)
 	"h1S1,SSDDSD;",
 	"h1S2,SSDDSD;",
-	"S3,DLV,Mount Domesday LaserDisc;",
+	"S3,PVF,Mount Domesday LaserDisc;",
 	"OC,Autostart,No,Yes;",
 	"-;",
 	"O4,Model,B(MOS6502),Master(R65SC12);",
@@ -424,15 +424,23 @@ hps_io #(.CONF_STR(CONF_STR),.VDNUM(4),.BLKSZ(2)) hps_io // IES Updated from c24
 	.joystick_l_analog_1({joy2_y,joy2_x})
 );
 
-// Virtual disk slot 3 is reserved for Domesday LaserDisc media. The bridge
-// currently records mount metadata and deliberately issues no block requests;
-// the Picmatic DLV streamer will become the owner of this slot next.
+// Virtual disk slot 3 is reserved for native Pi1MHz PVF LaserDisc media. The
+// bridge reads and validates the PVF1 header; video record streaming follows in
+// the next stage.
 assign sd_blk_cnt[0] = 6'd0;
 assign sd_blk_cnt[1] = 6'd0;
 assign sd_blk_cnt[2] = 6'd0;
 
 wire        domesday_disc_present;
 wire [63:0] domesday_disc_size;
+wire        domesday_pvf_valid;
+wire        domesday_pvf_error;
+wire [31:0] domesday_pvf_width;
+wire [31:0] domesday_pvf_height;
+wire [31:0] domesday_pvf_frames;
+wire [31:0] domesday_pvf_fps_num;
+wire [31:0] domesday_pvf_fps_den;
+wire [31:0] domesday_pvf_audio_hz;
 
 domesday_bridge domesday
 (
@@ -441,6 +449,14 @@ domesday_bridge domesday
 	.img_size        (img_size),
 	.disc_present    (domesday_disc_present),
 	.disc_size       (domesday_disc_size),
+	.pvf_valid       (domesday_pvf_valid),
+	.pvf_error       (domesday_pvf_error),
+	.pvf_width       (domesday_pvf_width),
+	.pvf_height      (domesday_pvf_height),
+	.pvf_frames      (domesday_pvf_frames),
+	.pvf_fps_num     (domesday_pvf_fps_num),
+	.pvf_fps_den     (domesday_pvf_fps_den),
+	.pvf_audio_hz    (domesday_pvf_audio_hz),
 	.sd_lba          (sd_lba[3]),
 	.sd_blk_cnt      (sd_blk_cnt[3]),
 	.sd_rd           (sd_rd[3]),

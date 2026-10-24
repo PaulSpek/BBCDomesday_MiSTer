@@ -63,3 +63,10 @@ python .\tools\pvf\pvf_to_ddv.py `
 
 `DDV1` is intentionally not yet mountable by the current BBC RBF. The next RTL
 stage will consume its 64-bit frame index, baseline JPEG payload and PCM data.
+
+`slice_pvf.py` makes a small, valid PVF1 source image for an end-to-end test
+without copying a complete disc to a build host. For one minute at 25 fps:
+
+```powershell
+python .\tools\pvf\slice_pvf.py ..\P1MHzImages\video.pvf ..\build\pvf-first-1500.pvf --frames 1500
+```

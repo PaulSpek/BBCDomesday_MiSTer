@@ -1,5 +1,25 @@
 # Development environment
 
+## Primary remote access
+
+Follow the local `REMOTE_ACCESS.md` instructions supplied with the workspace;
+that file is intentionally not committed because it contains private network
+and access metadata.
+The passwordless Linux connection has been verified from this workstation with:
+
+```powershell
+$LinuxKey = "$env:USERPROFILE\.ssh\id_ed25519_linuxlaptopdell_v2"
+ssh -i $LinuxKey -o BatchMode=yes paul@linuxlaptopdell `
+  'printf "HOST=%s USER=%s\n" "$(hostname)" "$(whoami)"'
+```
+
+It reports `HOST=linuxlaptopdell USER=paul`. The fork is cloned there at
+`/home/paul/Projects/Domesday`.
+
+That Linux host currently has no Quartus, Icarus, Verilator or Yosys. It is
+useful for Linux/Main_MiSTer builds and repository staging, but the BBC FPGA
+RBF must be compiled on a machine with Quartus Lite 17.0.2.
+
 ## Known local configuration
 
 The Arc project has an ignored machine-local configuration at:
@@ -22,10 +42,11 @@ Do not commit the password or duplicate it into tracked files. A Domesday-specif
 
 On 2026-10-24:
 
-- local `plink.exe` and `pscp.exe` existed;
-- TCP port 22 on both `192.168.1.113` and `192.168.1.147` was unreachable from this environment;
-- no local Quartus installation at the Arc-configured `D:` path was available to this project; and
-- therefore no baseline RBF build, fit report, or MiSTer runtime benchmark was run.
+- local `plink.exe` and `pscp.exe` exist;
+- the Linux remote is reachable with the documented `_v2` OpenSSH key;
+- the MiSTer target remains configured through Arc's local settings;
+- no local Quartus installation is available to this project; and
+- no baseline RBF build, fit report, or MiSTer runtime benchmark has yet been run.
 
 ## Suggested local settings shape
 
@@ -52,7 +73,7 @@ $DomesdayTransfer = @{
 
 ## Build expectations
 
-- Use Quartus Lite 17.0.2, matching MiSTer convention and the existing Beeb QSF.
+- Use Quartus Lite 17.0.2, matching MiSTer convention and the existing Beeb QSF, on the separate Quartus host.
 - First build the unmodified/upgraded core and save `*.map.rpt`, `*.fit.rpt`, `*.sta.rpt`, and flow summary.
 - Treat timing failure as a blocker before adding video logic.
 - Use a distinct RBF name such as `BBCMicro_Domesday_YYYYMMDD.rbf` so the known-good BBC core is not overwritten.

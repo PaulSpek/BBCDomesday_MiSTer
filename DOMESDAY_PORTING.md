@@ -17,10 +17,15 @@ contract again.
 
 ## Upstream relationship
 
-The original BeebFpga MiSTer checkout is kept as the `origin` remote in the
-implementation clone. Once GitHub authentication is available, change `origin`
-to the personal fork and add the original URL as `upstream`; retain the pinned
-baseline tag before rebasing or refreshing the MiSTer framework.
+The implementation clone uses `origin` for the personal fork and `upstream`
+for `sharpie7/BeebFpga_MiSTer`; `source-local` retains the shallow local
+research checkout. The fork is published as
+`PaulSpek/BBCDomesday_MiSTer`, with `domesday-main` as its default branch.
+
+The passwordless Linux build/staging host is documented in the local,
+untracked `REMOTE_ACCESS.md` file. Its verified key is kept outside the
+repository. The Linux host does not currently contain Quartus, so FPGA
+compilation still requires the separate Quartus machine.
 
 ## Validation order
 

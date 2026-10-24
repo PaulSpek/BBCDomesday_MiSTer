@@ -1,0 +1,62 @@
+name: Build MiSTer H264 benchmark
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install ARMv7 cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gcc-arm-linux-gnueabihf libc6-dev-armhf-cross make
+
+      - name: Check out pinned FFmpeg source
+        run: |
+          git clone --filter=blob:none https://github.com/FFmpeg/FFmpeg.git ffmpeg
+          git -C ffmpeg checkout --detach ce8f11b9fac4cd7ccfb41ca7c01bc17f5cda8cc3
+          test "$(git -C ffmpeg rev-parse HEAD)" = ce8f11b9fac4cd7ccfb41ca7c01bc17f5cda8cc3
+
+      - name: Build static ARMv7 H264 decoder benchmark
+        working-directory: ffmpeg
+        run: |
+          ./configure \
+            --arch=arm \
+            --cpu=cortex-a9 \
+            --target-os=linux \
+            --enable-cross-compile \
+            --cross-prefix=arm-linux-gnueabihf- \
+            --enable-neon \
+            --enable-static \
+            --disable-shared \
+            --disable-autodetect \
+            --disable-doc \
+            --disable-debug \
+            --disable-network \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-everything \
+            --enable-ffmpeg \
+            --enable-protocol=file \
+            --enable-demuxer=h264 \
+            --enable-parser=h264 \
+            --enable-decoder=h264 \
+            --enable-encoder=wrapped_avframe \
+            --enable-muxer=null \
+            --extra-cflags='-O3 -mfpu=neon -mfloat-abi=hard' \
+            --extra-ldflags='-static'
+          make -j"$(nproc)" ffmpeg
+          arm-linux-gnueabihf-strip ffmpeg
+          file ffmpeg
+
+      - name: Upload benchmark binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mister-ffmpeg-armv7
+          path: ffmpeg/ffmpeg
+          if-no-files-found: error
+          retention-days: 14

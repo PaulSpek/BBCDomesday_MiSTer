@@ -17,7 +17,7 @@ if ([string]::IsNullOrWhiteSpace($HostKey)) {
 }
 
 $target = "${RemoteUser}@${RemoteHost}"
-$plinkArgs = @('-batch', '-hostkey', $HostKey, $target)
+$plinkArgs = @('-batch', '-agent', '-hostkey', $HostKey, $target)
 
 if (-not $NoFetch) {
     $clone = "if not exist `"$RemoteRepo\.git`" git clone --branch $Branch https://github.com/PaulSpek/BBCDomesday_MiSTer.git `"$RemoteRepo`""

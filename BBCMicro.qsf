@@ -50,7 +50,11 @@ set_global_assignment -name PHYSICAL_SYNTHESIS_ASYNCHRONOUS_SIGNAL_PIPELINING ON
 set_global_assignment -name ALM_REGISTER_PACKING_EFFORT MEDIUM
 set_global_assignment -name SEED 1
 
-#set_global_assignment -name VERILOG_MACRO "MISTER_FB=1"
+# Keep the MiSTer framebuffer/DDRAM ports in the emu interface.  The
+# framebuffer is disabled by default in RTL until the Domesday video path is
+# attached, but compiling the interface now prevents the old USE_FB/MISTER_FB
+# mismatch from reappearing when that path is added.
+set_global_assignment -name VERILOG_MACRO "MISTER_FB=1"
 
 #enable it only if 8bit indexed mode is used in core
 #set_global_assignment -name VERILOG_MACRO "MISTER_FB_PALETTE=1"

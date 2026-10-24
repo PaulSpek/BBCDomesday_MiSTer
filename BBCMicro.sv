@@ -56,8 +56,10 @@ module emu
 	input  [11:0] HDMI_HEIGHT,
 	output        HDMI_FREEZE,
 
-`ifdef USE_FB
-	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
+`ifdef MISTER_FB
+	// MiSTer framebuffer/DDRAM interface.  This is compiled in for the
+	// Domesday branch; FB_EN remains low until the LaserDisc compositor owns
+	// the interface.
 	// FB_FORMAT:
 	//    [2:0] : 011=8bpp(palette) 100=16bpp 101=24bpp 110=32bpp
 	//    [3]   : 0=16bits 565 1=16bits 1555
@@ -178,9 +180,27 @@ assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_DTR} = '1;
 assign {SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
-// assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
-assign {SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
+
+`ifdef MISTER_FB
+// Safe inactive values for the modern MiSTer framebuffer contract.  The
+// future Domesday compositor will replace these with its DDR triple-buffer
+// ownership signals; keeping the interface inactive makes the modernization
+// boot-safe and preserves the existing BBC video path.
+assign FB_EN          = 1'b0;
+assign FB_FORMAT      = 5'b00100; // RGB565
+assign FB_WIDTH       = 12'd0;
+assign FB_HEIGHT      = 12'd0;
+assign FB_BASE        = 32'd0;
+assign FB_STRIDE      = 14'd0;
+assign FB_FORCE_BLANK = 1'b0;
+`ifdef MISTER_FB_PALETTE
+assign FB_PAL_CLK     = 1'b0;
+assign FB_PAL_ADDR    = 8'd0;
+assign FB_PAL_DOUT    = 24'd0;
+assign FB_PAL_WR      = 1'b0;
+`endif
+`endif
  
 assign LED_USER  = ioctl_download | (vsd_sel & sd_act);
 assign LED_DISK  = {1'b1,~vsd_sel & sd_act};

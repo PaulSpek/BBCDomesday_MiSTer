@@ -1,5 +1,18 @@
 # BeebFpga_MiSTer
 
+## Domesday development fork
+
+This working tree is the Domesday development basis for a BBC Master plus
+Philips VP415/LaserDisc implementation. It retains the upstream BBC features
+below while adding the first MiSTer framework modernization needed by the
+Picmatic-derived video path. See [DOMESDAY_PORTING.md](DOMESDAY_PORTING.md) and
+the [project feasibility notes](docs/feasibility.md).
+
+The current modernization is intentionally inactive at runtime: the
+`MISTER_FB` interface is compiled and driven to safe RGB565 defaults, while
+the original BBC video path remains selected. This makes the branch suitable
+for a baseline remote build before adding the LaserDisc decoder.
+
 An experiment in building a BBC Micro MiSTer core by using the [official core](https://github.com/MiSTer-devel/BBCMicro_MiSTer) harness with the updates in the [BeebFPGA](https://github.com/hoglet67/BeebFpga) emulation. The BeebFPGA is actively maintained and incorporates a range of improvements to the emulation over the official MiSTer Core.
 
 This core supports the original features of the MiSTer core:

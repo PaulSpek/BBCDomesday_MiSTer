@@ -203,7 +203,7 @@ assign FB_PAL_WR      = 1'b0;
 `endif
  
 assign LED_USER  = ioctl_download | (vsd_sel & sd_act) |
-                   (status[DOMESDAY_DIAG_OPT] & domesday_pvf_valid);
+                   (status[DOMESDAY_DIAG_OPT] & (domesday_pvf_valid | domesday_ddv_valid));
 assign LED_DISK  = {1'b1,~vsd_sel & sd_act};
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
@@ -272,7 +272,7 @@ parameter CONF_STR = {
 	"h0S0,VHDIMGMMB;", // Allow .VHD or .MMB files to be loaded (MMFSv1) or .IMG (MMFS v2)
 	"h1S1,SSDDSD;",
 	"h1S2,SSDDSD;",
-	"S3,PVF,Mount Domesday LaserDisc;",
+	"S3,DDV,Mount Domesday LaserDisc cache;",
 	"OC,Autostart,No,Yes;",
 	"-;",
 	"O4,Model,B(MOS6502),Master(R65SC12);",
@@ -435,6 +435,8 @@ wire        domesday_disc_present;
 wire [63:0] domesday_disc_size;
 wire        domesday_pvf_valid;
 wire        domesday_pvf_error;
+wire        domesday_ddv_valid;
+wire        domesday_ddv_error;
 wire [31:0] domesday_pvf_width;
 wire [31:0] domesday_pvf_height;
 wire [31:0] domesday_pvf_frames;
@@ -451,6 +453,8 @@ domesday_bridge domesday
 	.disc_size       (domesday_disc_size),
 	.pvf_valid       (domesday_pvf_valid),
 	.pvf_error       (domesday_pvf_error),
+	.ddv_valid       (domesday_ddv_valid),
+	.ddv_error       (domesday_ddv_error),
 	.pvf_width       (domesday_pvf_width),
 	.pvf_height      (domesday_pvf_height),
 	.pvf_frames      (domesday_pvf_frames),

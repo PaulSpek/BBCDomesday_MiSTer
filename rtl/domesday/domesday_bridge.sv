@@ -15,6 +15,8 @@ module domesday_bridge
 	output reg [63:0] disc_size    = 64'd0,
 	output reg        pvf_valid    = 1'b0,
 	output reg        pvf_error    = 1'b0,
+	output reg        ddv_valid    = 1'b0,
+	output reg        ddv_error    = 1'b0,
 	output reg [31:0] pvf_width    = 32'd0,
 	output reg [31:0] pvf_height   = 32'd0,
 	output reg [31:0] pvf_frames   = 32'd0,
@@ -42,12 +44,14 @@ localparam [2:0] ST_READY = 3'd5;
 
 localparam [31:0] PVF_MAGIC = 32'h31465650; // little-endian "PVF1"
 localparam [31:0] PVF_VERSION = 32'd1;
+localparam [31:0] DDV_MAGIC = 32'h31564444; // little-endian "DDV1"
+localparam [31:0] DDV_VERSION = 32'd1;
 
 reg [2:0] state = ST_NO_MEDIA;
-reg [31:0] header_words [0:15];
+reg [31:0] header_words [0:127];
 integer i;
 
-wire [3:0] header_word = sd_buff_addr[5:2];
+wire [6:0] header_word = sd_buff_addr[8:2];
 wire [31:0] expected_data_offset = 32'd64 + (header_words[6] << 2);
 wire header_sane =
 	header_words[0] == PVF_MAGIC &&
@@ -61,6 +65,37 @@ wire header_sane =
 	header_words[11] == expected_data_offset &&
 	header_words[11] < disc_size &&
 	header_words[12] != 32'd0;
+
+// DDV1 is the high-quality, JPEG/PCM playback cache made by
+// tools/pvf/pvf_to_ddv.py. Its 64-bit index fields intentionally exceed the
+// 4 GiB limit of arcade DLV files.  This bridge validates the media boundary;
+// JPEG and PCM streaming are the next RTL stage.
+wire [63:0] ddv_index_offset = {header_words[10], header_words[9]};
+wire [63:0] ddv_index_size   = {header_words[12], header_words[11]};
+wire [63:0] ddv_video_offset = {header_words[14], header_words[13]};
+wire [63:0] ddv_video_size   = {header_words[16], header_words[15]};
+wire [63:0] ddv_audio_offset = {header_words[18], header_words[17]};
+wire [63:0] ddv_audio_size   = {header_words[20], header_words[19]};
+wire [63:0] ddv_expected_index_size = ({32'd0, header_words[6]} << 4);
+wire ddv_header_sane =
+	header_words[0] == DDV_MAGIC &&
+	header_words[1] == DDV_VERSION &&
+	header_words[2] != 32'd0 &&
+	header_words[3] != 32'd0 &&
+	header_words[4] != 32'd0 &&
+	header_words[5] != 32'd0 &&
+	header_words[6] != 32'd0 &&
+	header_words[7] == 32'd48000 &&
+	header_words[8] == 32'd2 &&
+	ddv_index_offset == 64'd512 &&
+	ddv_index_size == ddv_expected_index_size &&
+	ddv_video_offset >= (ddv_index_offset + ddv_index_size) &&
+	ddv_video_size != 64'd0 &&
+	ddv_audio_offset >= (ddv_video_offset + ddv_video_size) &&
+	ddv_audio_size != 64'd0 &&
+	header_words[22] == 32'd1920 &&
+	header_words[23] == 32'd3 &&
+	ddv_audio_offset < disc_size;
 
 assign sd_blk_cnt  = 6'd0; // one 512-byte sector
 assign sd_wr       = 1'b0;
@@ -82,7 +117,9 @@ always @(posedge clk) begin
 		pvf_audio_hz <= 32'd0;
 		sd_rd        <= 1'b0;
 		sd_lba       <= 32'd0;
-		for (i = 0; i < 16; i = i + 1) header_words[i] <= 32'd0;
+		ddv_valid    <= 1'b0;
+		ddv_error    <= 1'b0;
+		for (i = 0; i < 128; i = i + 1) header_words[i] <= 32'd0;
 		state <= (|img_size) ? ST_WAIT_BUS : ST_NO_MEDIA;
 	end else begin
 		case (state)
@@ -107,7 +144,7 @@ always @(posedge clk) begin
 
 		ST_READ_DATA: begin
 			sd_rd <= 1'b0;
-			if (sd_buff_wr && sd_buff_addr < 9'd64) begin
+			if (sd_buff_wr) begin
 				case (sd_buff_addr[1:0])
 				2'd0: header_words[header_word][7:0]   <= sd_buff_dout;
 				2'd1: header_words[header_word][15:8]  <= sd_buff_dout;
@@ -121,6 +158,8 @@ always @(posedge clk) begin
 		ST_VALIDATE: begin
 			pvf_valid    <= header_sane;
 			pvf_error    <= !header_sane;
+			ddv_valid    <= ddv_header_sane;
+			ddv_error    <= !ddv_header_sane;
 			pvf_width    <= header_words[2];
 			pvf_height   <= header_words[3];
 			pvf_fps_num  <= header_words[4];

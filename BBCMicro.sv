@@ -202,7 +202,8 @@ assign FB_PAL_WR      = 1'b0;
 `endif
 `endif
  
-assign LED_USER  = ioctl_download | (vsd_sel & sd_act);
+assign LED_USER  = ioctl_download | (vsd_sel & sd_act) |
+                   (status[DOMESDAY_DIAG_OPT] & domesday_disc_present);
 assign LED_DISK  = {1'b1,~vsd_sel & sd_act};
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
@@ -262,6 +263,7 @@ parameter FILE_SYS_OPT_H = 27;
 parameter M7_VIDEO_OPT = 28;
 parameter M128_SHADOW_OPT = 29;
 parameter M128_FS_OPT = 30;
+parameter DOMESDAY_DIAG_OPT = 31;
 
 parameter CONF_STR = {
 	"BBCMicro;;",
@@ -270,6 +272,7 @@ parameter CONF_STR = {
 	"h0S0,VHDIMGMMB;", // Allow .VHD or .MMB files to be loaded (MMFSv1) or .IMG (MMFS v2)
 	"h1S1,SSDDSD;",
 	"h1S2,SSDDSD;",
+	"S3,DLV,Mount Domesday LaserDisc;",
 	"OC,Autostart,No,Yes;",
 	"-;",
 	"O4,Model,B(MOS6502),Master(R65SC12);",
@@ -285,6 +288,7 @@ parameter CONF_STR = {
 	"-;",
 	"OA,Mouse as Joystick,Yes,No;",
 	"OB,Swap Joysticks,No,Yes;",
+	"OV,Domesday status LED,Off,On;",
 	"-;",
 	"R0,Reset;",
 	"JA,Fire;",
@@ -359,22 +363,23 @@ wire [7:0]  ioctl_dout;
 wire        forced_scandoubler;
 wire [21:0] gamma_bus;
 
-wire [31:0] sd_lba[3];
-wire [2:0]  sd_rd;
-wire [2:0]  sd_wr;
-wire [2:0]  sd_ack;
+wire [31:0] sd_lba[4];
+wire  [5:0] sd_blk_cnt[4];
+wire [3:0]  sd_rd;
+wire [3:0]  sd_wr;
+wire [3:0]  sd_ack;
 wire [12:0] sd_buff_addr;
 wire [7:0]  sd_buff_dout;
-wire [7:0]  sd_buff_din[3];
+wire [7:0]  sd_buff_din[4];
 wire        sd_buff_wr;
-wire [2:0]  img_mounted;
+wire [3:0]  img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 wire        sd_ack_conf;
 
 wire [64:0] RTC;
 
-hps_io #(.CONF_STR(CONF_STR),.VDNUM(3),.BLKSZ(2)) hps_io // IES Updated from c244
+hps_io #(.CONF_STR(CONF_STR),.VDNUM(4),.BLKSZ(2)) hps_io // IES Updated from c244
 
 
 (
@@ -401,6 +406,7 @@ hps_io #(.CONF_STR(CONF_STR),.VDNUM(3),.BLKSZ(2)) hps_io // IES Updated from c24
 	.ioctl_dout(ioctl_dout),
 
 	.sd_lba(sd_lba),
+	.sd_blk_cnt(sd_blk_cnt),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
@@ -418,9 +424,37 @@ hps_io #(.CONF_STR(CONF_STR),.VDNUM(3),.BLKSZ(2)) hps_io // IES Updated from c24
 	.joystick_l_analog_1({joy2_y,joy2_x})
 );
 
+// Virtual disk slot 3 is reserved for Domesday LaserDisc media. The bridge
+// currently records mount metadata and deliberately issues no block requests;
+// the Picmatic DLV streamer will become the owner of this slot next.
+assign sd_blk_cnt[0] = 6'd0;
+assign sd_blk_cnt[1] = 6'd0;
+assign sd_blk_cnt[2] = 6'd0;
+
+wire        domesday_disc_present;
+wire [63:0] domesday_disc_size;
+
+domesday_bridge domesday
+(
+	.clk             (clk_sys),
+	.img_mounted     (img_mounted[3]),
+	.img_size        (img_size),
+	.disc_present    (domesday_disc_present),
+	.disc_size       (domesday_disc_size),
+	.sd_lba          (sd_lba[3]),
+	.sd_blk_cnt      (sd_blk_cnt[3]),
+	.sd_rd           (sd_rd[3]),
+	.sd_wr           (sd_wr[3]),
+	.sd_ack          (sd_ack[3]),
+	.sd_buff_addr    (sd_buff_addr[8:0]),
+	.sd_buff_dout    (sd_buff_dout),
+	.sd_buff_wr      (sd_buff_wr),
+	.sd_buff_din     (sd_buff_din[3])
+);
+
 /////////////////  RESET  /////////////////////////
 
-wire reset = RESET | status[0] | buttons[1] | (status[AUTO_START_OPT] & img_mounted);
+wire reset = RESET | status[0] | buttons[1] | (status[AUTO_START_OPT] & (|img_mounted[2:0]));
 
 ////////////////  MEMORY  /////////////////////////
 

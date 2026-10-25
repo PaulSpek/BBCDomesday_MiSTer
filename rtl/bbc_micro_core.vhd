@@ -192,6 +192,13 @@ entity bbc_micro_core is
         -- Current CPU address, e.g. to drive a hex display
         cpu_addr       : out   std_logic_vector(15 downto 0);
 
+        -- Acorn AIV SCSI host-adapter expansion at FRED &FC40-&FC43.
+        aiv_scsi_cs    : out   std_logic;
+        aiv_scsi_rnw   : out   std_logic;
+        aiv_scsi_addr  : out   std_logic_vector(1 downto 0);
+        aiv_scsi_din   : out   std_logic_vector(7 downto 0);
+        aiv_scsi_dout  : in    std_logic_vector(7 downto 0);
+
         -- Master Mode
         m128_mode      : in    std_logic;
 
@@ -367,6 +374,7 @@ signal cpu_di           :   std_logic_vector(7 downto 0);
 signal cpu_do           :   std_logic_vector(7 downto 0);
 signal cpu_addr_us      :   unsigned (15 downto 0);
 signal cpu_dout_us      :   unsigned (7 downto 0);
+signal aiv_scsi_enable  :   std_logic;
 signal cpu_a_t65        :   std_logic_vector(23 downto 0);
 signal cpu_do_t65       :   std_logic_vector(7 downto 0);
 signal cpu_r_nw_t65     :   std_logic;
@@ -1581,8 +1589,9 @@ begin
     -- The following IO regions are accessed at 1 MHz and hence will stall the
     -- CPU accordingly
     mhz1_enable <= io_fred or io_jim or
-        adc_enable or sys_via_enable or user_via_enable or mouse_via_enable or
+        aiv_scsi_enable or adc_enable or sys_via_enable or user_via_enable or mouse_via_enable or
         serproc_enable or acia_enable or crtc_enable;
+    aiv_scsi_enable <= '1' when cpu_a(15 downto 2) = "11111100010000" else '0';
 
 
     -- FRED address demux
@@ -1770,6 +1779,7 @@ begin
         sys_via_do_r   when sys_via_enable = '1' else
         user_via_do_r  when user_via_enable = '1' else
         mouse_via_do_r when mouse_via_enable = '1' else
+		aiv_scsi_dout  when aiv_scsi_enable = '1' else
         -- Optional peripherals
         sid_do         when sid_enable = '1' and IncludeSid else
         music5000_do   when io_jim = '1' and IncludeMusic5000 else
@@ -2436,6 +2446,10 @@ begin
 
     -- Debugging output
     cpu_addr <= cpu_a(15 downto 0);
+    aiv_scsi_cs <= aiv_scsi_enable;
+    aiv_scsi_rnw <= cpu_r_nw;
+    aiv_scsi_addr <= cpu_a(1 downto 0);
+    aiv_scsi_din <= cpu_do;
 
 	 
 	     -- SDCLK is driven from either PB1 or CB1 depending on the SR Mode

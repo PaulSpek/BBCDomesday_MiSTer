@@ -451,6 +451,11 @@ wire [31:0] domesday_pvf_frames;
 wire [31:0] domesday_pvf_fps_num;
 wire [31:0] domesday_pvf_fps_den;
 wire [31:0] domesday_pvf_audio_hz;
+wire        aiv_scsi_cs;
+wire        aiv_scsi_rnw;
+wire [1:0]  aiv_scsi_addr;
+wire [7:0]  aiv_scsi_din;
+wire [7:0]  aiv_scsi_dout;
 
 domesday_bridge domesday
 (
@@ -505,6 +510,22 @@ domesday_vfs_media domesday_vfs
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_wr  (sd_buff_wr),
 	.sd_buff_din (sd_buff_din[4])
+);
+
+// The AIV adapter is on the BBC's 1 MHz FRED bus, not on the MiSTer SD
+// interface. It exposes the Pi1MHz-compatible four-register boundary; the
+// command/data engine is deliberately layered behind this synchronous bus
+// interface.
+aiv_scsi_adapter aiv_scsi
+(
+	.clk       (clk_48),
+	.reset     (reset),
+	.cs        (aiv_scsi_cs),
+	.rnw       (aiv_scsi_rnw),
+	.addr      (aiv_scsi_addr),
+	.din       (aiv_scsi_din),
+	.dout      (aiv_scsi_dout),
+	.media_present(domesday_vfs_valid)
 );
 
 /////////////////  RESET  /////////////////////////
@@ -744,6 +765,11 @@ bbc_micro_core BBCMicro(
 	.avr_TxD(UART_TXD),
 
 	.cpu_addr(), // IES: Debugging
+	.aiv_scsi_cs(aiv_scsi_cs),
+	.aiv_scsi_rnw(aiv_scsi_rnw),
+	.aiv_scsi_addr(aiv_scsi_addr),
+	.aiv_scsi_din(aiv_scsi_din),
+	.aiv_scsi_dout(aiv_scsi_dout),
 	.m128_mode(m128),
 	.copro_mode(|status[6:5]),
 	

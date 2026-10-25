@@ -536,6 +536,7 @@ aiv_scsi_adapter aiv_scsi
 	.din       (aiv_scsi_din),
 	.dout      (aiv_scsi_dout),
 	.media_present(domesday_vfs_valid),
+	.media_size(domesday_vfs_size),
 	.media_read(aiv_scsi_media_read),
 	.media_lba (aiv_scsi_media_lba),
 	.media_ready(aiv_scsi_media_ready),

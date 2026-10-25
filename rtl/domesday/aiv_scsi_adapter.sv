@@ -13,6 +13,7 @@ module aiv_scsi_adapter
 	input       [7:0] din,
 	output reg  [7:0] dout,
 	input             media_present,
+	input      [63:0] media_size,
 	output            media_read,
 	output      [31:0] media_lba,
 	input             media_ready,
@@ -45,6 +46,11 @@ reg [31:0] current_block = 32'd0;
 reg [8:0] block_base = 9'd0;
 reg [7:0] scsi_status = 8'h00;
 reg irq_enable = 1'b0;
+
+// LV-ROM is exposed using the 256-byte logical blocks expected by VFS,
+// whereas MiSTer's block API and the cache use 512-byte sectors.
+wire [31:0] scsi_block_count = media_size[39:8];
+wire [31:0] scsi_last_block = scsi_block_count ? scsi_block_count - 1'b1 : 32'd0;
 
 function automatic [7:0] inquiry_byte(input [5:0] index);
 	begin
@@ -80,6 +86,30 @@ function automatic [7:0] sense_byte(input [4:0] index);
 			2: sense_byte = media_present ? 8'h00 : 8'h02; // not ready
 			7: sense_byte = 8'd10;
 			default: sense_byte = 8'h00;
+		endcase
+	end
+endfunction
+
+// Replies for control commands which precede normal VFS reads.  VFS needs a
+// real capacity reply to derive its LV-ROM geometry; MODE SENSE needs at
+// least a legal four-byte header.  The LV-ROM is deliberately read-only.
+function automatic [7:0] control_byte(input [7:0] opcode, input [5:0] index);
+	begin
+		control_byte = 8'h00;
+		case (opcode)
+			8'h25: case (index) // READ CAPACITY(10): last LBA, 256-byte block size
+				0: control_byte = scsi_last_block[31:24];
+				1: control_byte = scsi_last_block[23:16];
+				2: control_byte = scsi_last_block[15:8];
+				3: control_byte = scsi_last_block[7:0];
+				6: control_byte = 8'h01;
+				default: control_byte = 8'h00;
+			endcase
+			8'h1a: case (index) // MODE SENSE(6), no block descriptor/pages
+				0: control_byte = 8'h03;
+				default: control_byte = 8'h00;
+			endcase
+			default: control_byte = 8'h00;
 		endcase
 	end
 endfunction
@@ -148,6 +178,23 @@ always @(posedge clk) begin
 					data_reg <= inquiry_byte(0);
 					phase <= (cdb[4] == 0) ? PH_STATUS : PH_DATA;
 				end
+				8'h1a: begin // MODE SENSE(6)
+					data_count <= 9'd0;
+					data_length <= (cdb[4] < 4) ? cdb[4] : 9'd4;
+					data_reg <= control_byte(8'h1a, 0);
+					phase <= (cdb[4] == 0) ? PH_STATUS : PH_DATA;
+				end
+				8'h1b: begin // START/STOP UNIT: mounted LV-ROM is always ready
+					scsi_status <= 8'h00;
+					data_reg <= 8'h00;
+					phase <= PH_STATUS;
+				end
+				8'h25: begin // READ CAPACITY(10)
+					data_count <= 9'd0;
+					data_length <= 9'd8;
+					data_reg <= control_byte(8'h25, 0);
+					phase <= PH_DATA;
+				end
 				8'h08: begin // READ(6), 256-byte SCSI blocks
 					current_block <= {11'd0, cdb[1][4:0], cdb[2], cdb[3]};
 					blocks_left <= (cdb[4] == 0) ? 9'd256 : {1'b0, cdb[4]};
@@ -187,7 +234,8 @@ always @(posedge clk) begin
 				end else begin
 					data_count <= data_count + 1'b1;
 					if (cdb[0] == 8'h12) data_reg <= inquiry_byte(data_count + 1'b1);
-					else data_reg <= sense_byte(data_count + 1'b1);
+					else if (cdb[0] == 8'h03) data_reg <= sense_byte(data_count + 1'b1);
+					else data_reg <= control_byte(cdb[0], data_count + 1'b1);
 				end
 			end
 			PH_READ: begin

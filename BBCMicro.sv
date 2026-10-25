@@ -437,6 +437,10 @@ wire        domesday_pvf_valid;
 wire        domesday_pvf_error;
 wire        domesday_ddv_valid;
 wire        domesday_ddv_error;
+wire        domesday_ddv_index_valid;
+wire        domesday_ddv_index_error;
+wire [63:0] domesday_ddv_frame_offset;
+wire [31:0] domesday_ddv_frame_length;
 wire [31:0] domesday_pvf_width;
 wire [31:0] domesday_pvf_height;
 wire [31:0] domesday_pvf_frames;
@@ -455,6 +459,10 @@ domesday_bridge domesday
 	.pvf_error       (domesday_pvf_error),
 	.ddv_valid       (domesday_ddv_valid),
 	.ddv_error       (domesday_ddv_error),
+	.ddv_index_valid (domesday_ddv_index_valid),
+	.ddv_index_error (domesday_ddv_index_error),
+	.ddv_frame_offset(domesday_ddv_frame_offset),
+	.ddv_frame_length(domesday_ddv_frame_length),
 	.pvf_width       (domesday_pvf_width),
 	.pvf_height      (domesday_pvf_height),
 	.pvf_frames      (domesday_pvf_frames),

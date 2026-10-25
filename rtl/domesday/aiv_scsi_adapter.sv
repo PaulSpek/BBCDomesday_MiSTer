@@ -46,6 +46,8 @@ reg [31:0] current_block = 32'd0;
 reg [8:0] block_base = 9'd0;
 reg [7:0] scsi_status = 8'h00;
 reg irq_enable = 1'b0;
+reg req_asserted = 1'b0;
+reg [5:0] req_gap = 6'd0;
 
 // LV-ROM is exposed using the 256-byte logical blocks expected by VFS,
 // whereas MiSTer's block API and the cache use 512-byte sectors.
@@ -119,7 +121,8 @@ always @* begin
 		2'd0: dout = data_reg;
 		2'd1: begin
 			dout = 8'h00;
-			if (phase != PH_BUSFREE) dout = ST_BSY | ST_REQ;
+			if (phase != PH_BUSFREE) dout = ST_BSY;
+			if (req_asserted) dout = dout | ST_REQ;
 			if (phase == PH_COMMAND || phase == PH_STATUS || phase == PH_MESSAGE)
 				dout = dout | ST_CND;
 			if (phase == PH_DATA || phase == PH_READ || phase == PH_STATUS || phase == PH_MESSAGE)
@@ -143,17 +146,30 @@ always @(posedge clk) begin
 		data_reg <= 8'h00;
 		cdb_count <= 4'd0;
 		irq_enable <= 1'b0;
+		req_asserted <= 1'b0;
+		req_gap <= 6'd0;
 	end else begin
+		// The AIV host acknowledges every byte at FC40.  The real Pi1MHz
+		// interface drops REQ in that access and only raises it again when the
+		// next byte is ready.  VFS polls for that edge; holding REQ high makes
+		// it wait indefinitely after the first byte of a command.
+		if (!req_asserted && phase != PH_BUSFREE && phase != PH_READ_WAIT) begin
+			if (req_gap == 0) req_asserted <= 1'b1;
+			else req_gap <= req_gap - 1'b1;
+		end
+
 		if (cs && !rnw && addr == 2'd2) begin
 			// FC42: host asserts select. The data value is not used by the
 			// Pi1MHz-compatible target; one mounted VFS LUN is exposed.
 			phase <= PH_COMMAND;
 			cdb_count <= 4'd0;
 			scsi_status <= 8'h00;
+			req_asserted <= 1'b1;
+			req_gap <= 6'd0;
 		end
 		if (cs && !rnw && addr == 2'd3) irq_enable <= din[0];
 
-		if (cs && !rnw && addr == 2'd0 && phase == PH_COMMAND) begin
+		if (cs && !rnw && addr == 2'd0 && phase == PH_COMMAND && req_asserted) begin
 			cdb[cdb_count] <= din;
 			if (cdb_count == 0) begin
 				cdb_length <= (din == 8'h28) ? 4'd10 : 4'd6;
@@ -222,10 +238,19 @@ always @(posedge clk) begin
 			data_count <= 9'd0;
 			data_reg <= media_data;
 			phase <= PH_READ;
+			req_asserted <= 1'b1;
+			req_gap <= 6'd0;
+		end
+
+		// FC40 is ACK for both directions. Leave REQ inactive long enough for
+		// the 2 MHz host to observe it before presenting the following byte.
+		if (cs && addr == 2'd0 && req_asserted) begin
+			req_asserted <= 1'b0;
+			req_gap <= 6'd32;
 		end
 
 		// A FC40 read is the host acknowledge for target-to-host phases.
-		if (cs && rnw && addr == 2'd0) begin
+		if (cs && rnw && addr == 2'd0 && req_asserted) begin
 			case (phase)
 			PH_DATA: begin
 				if (data_count + 1'b1 >= data_length) begin

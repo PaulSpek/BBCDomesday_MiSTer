@@ -20,8 +20,9 @@ AIV target, which presents the volume as 256-byte SCSI blocks. The target at
 `&FC40-&FC43` implements discovery plus read-only `INQUIRY`, `TEST UNIT
 READY`, `REQUEST SENSE`, `MODE SENSE(6)`, `START/STOP`, `READ CAPACITY(10)`,
 `READ(6)` and `READ(10)` phases. `READ CAPACITY` reports 256-byte logical
-blocks, matching the VFS/LV-ROM protocol. A VFS volume must never be mounted
-as a floppy.
+blocks, matching the VFS/LV-ROM protocol. Its AIV bus front end also models
+the per-byte REQ/ACK edge (including a brief REQ release) required by VFS.
+A VFS volume must never be mounted as a floppy.
 
 The third-party Pi1MHz VFS ROM is packed into fixed Master sideways-ROM slot
 8 (the otherwise unused slot) in `roms/rom.mif`. Regenerate that image with

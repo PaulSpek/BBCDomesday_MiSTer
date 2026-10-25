@@ -276,7 +276,7 @@ parameter CONF_STR = {
 	"h1S1,SSDDSD;",
 	"h1S2,SSDDSD;",
 	"S3,DDV,Mount Domesday LaserDisc cache;",
-	"S4,IMG,Mount Domesday LV-ROM volume;",
+	"S4,DAT,Mount Domesday LV-ROM volume;",
 	"OC,Autostart,No,Yes;",
 	"-;",
 	"O4,Model,B(MOS6502),Master(R65SC12);",

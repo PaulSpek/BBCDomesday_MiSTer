@@ -14,6 +14,11 @@ file. The OSD mounts `.DDV` playback-cache media; the optional status LED
 lights after the header passes validation. Video records are not streamed or
 decoded yet, so BBC video and audio remain unchanged.
 
+`domesday_vfs_media.sv` owns slot 4, reserved for a separate read-only
+`scsi0.dat` LV-ROM volume. It proves that the mounted volume can be read at
+the MiSTer block boundary. The next layer is an Acorn AIV SCSI target visible
+to the BBC at `&FC40-&FC43`; a VFS volume must never be mounted as a floppy.
+
 ## Planned phases
 
 1. Generalise the verified frame-zero index fetch to individually addressed

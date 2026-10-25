@@ -203,7 +203,7 @@ assign FB_PAL_WR      = 1'b0;
 `endif
  
 assign LED_USER  = ioctl_download | (vsd_sel & sd_act) |
-                   (status[DOMESDAY_DIAG_OPT] & (domesday_pvf_valid | domesday_ddv_valid));
+				   (status[DOMESDAY_DIAG_OPT] & (domesday_pvf_valid | domesday_ddv_valid | domesday_vfs_valid));
 assign LED_DISK  = {1'b1,~vsd_sel & sd_act};
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
@@ -257,6 +257,9 @@ video_freak video_freak
 // 3 - Master selected and both MMFS and DFS active
 
 `include "build_id.v" 
+wire        domesday_vfs_present;
+wire        domesday_vfs_valid;
+wire [63:0] domesday_vfs_size;
 parameter AUTO_START_OPT = 12;
 parameter FILE_SYS_OPT_L = 25;
 parameter FILE_SYS_OPT_H = 27;
@@ -273,6 +276,7 @@ parameter CONF_STR = {
 	"h1S1,SSDDSD;",
 	"h1S2,SSDDSD;",
 	"S3,DDV,Mount Domesday LaserDisc cache;",
+	"S4,IMG,Mount Domesday LV-ROM volume;",
 	"OC,Autostart,No,Yes;",
 	"-;",
 	"O4,Model,B(MOS6502),Master(R65SC12);",
@@ -363,23 +367,23 @@ wire [7:0]  ioctl_dout;
 wire        forced_scandoubler;
 wire [21:0] gamma_bus;
 
-wire [31:0] sd_lba[4];
-wire  [5:0] sd_blk_cnt[4];
-wire [3:0]  sd_rd;
-wire [3:0]  sd_wr;
-wire [3:0]  sd_ack;
+wire [31:0] sd_lba[5];
+wire  [5:0] sd_blk_cnt[5];
+wire [4:0]  sd_rd;
+wire [4:0]  sd_wr;
+wire [4:0]  sd_ack;
 wire [12:0] sd_buff_addr;
 wire [7:0]  sd_buff_dout;
-wire [7:0]  sd_buff_din[4];
+wire [7:0]  sd_buff_din[5];
 wire        sd_buff_wr;
-wire [3:0]  img_mounted;
+wire [4:0]  img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 wire        sd_ack_conf;
 
 wire [64:0] RTC;
 
-hps_io #(.CONF_STR(CONF_STR),.VDNUM(4),.BLKSZ(2)) hps_io // IES Updated from c244
+hps_io #(.CONF_STR(CONF_STR),.VDNUM(5),.BLKSZ(2)) hps_io // IES Updated from c244
 
 
 (
@@ -480,9 +484,32 @@ domesday_bridge domesday
 	.sd_buff_din     (sd_buff_din[3])
 );
 
+// Slot 4 is intentionally separate from the DDV playback cache.  An LV-ROM
+// volume contains the BBC-side application/data; it must eventually be
+// presented by the AIV SCSI controller at &FC40-&FC43, rather than treated as
+// a BBC floppy image.
+domesday_vfs_media domesday_vfs
+(
+	.clk         (clk_sys),
+	.img_mounted (img_mounted[4]),
+	.img_size    (img_size),
+	.present     (domesday_vfs_present),
+	.valid       (domesday_vfs_valid),
+	.size        (domesday_vfs_size),
+	.sd_lba      (sd_lba[4]),
+	.sd_blk_cnt  (sd_blk_cnt[4]),
+	.sd_rd       (sd_rd[4]),
+	.sd_wr       (sd_wr[4]),
+	.sd_ack      (sd_ack[4]),
+	.sd_buff_addr(sd_buff_addr[8:0]),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_wr  (sd_buff_wr),
+	.sd_buff_din (sd_buff_din[4])
+);
+
 /////////////////  RESET  /////////////////////////
 
-wire reset = RESET | status[0] | buttons[1] | (status[AUTO_START_OPT] & (|img_mounted[2:0]));
+wire reset = RESET | status[0] | buttons[1] | (status[AUTO_START_OPT] & (|img_mounted[4:0]));
 
 ////////////////  MEMORY  /////////////////////////
 

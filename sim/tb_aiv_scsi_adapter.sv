@@ -148,7 +148,7 @@ module tb_aiv_scsi_adapter;
 		if (dout[7:5] != 3'b001) $fatal(1, "WRITE F-Code is not data-out: status=%02x", dout);
 		for (n = 0; n < 256; n = n + 1) begin
 			wait_req(1'b1);
-			fred_write(2'd0, n[7:0]);
+			fred_write(2'd0, (n == 0) ? "?" : (n == 1) ? "P" : (n == 2) ? 8'h0d : 8'h00);
 			wait_req(1'b0);
 		end
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "WRITE F-Code status");
@@ -163,7 +163,14 @@ module tb_aiv_scsi_adapter;
 		write_command_byte(8'h00);
 		for (n = 0; n < 256; n = n + 1) begin
 			read_target_byte(byte_read);
-			if (byte_read != (n == 0 ? 8'h0d : 8'h00)) $fatal(1, "READ F-Code byte %0d", n);
+			case (n)
+				0: if (byte_read != "P") $fatal(1, "READ F-Code status tag");
+				1: if (byte_read != 8'h60) $fatal(1, "READ F-Code loaded flag");
+				2, 3: if (byte_read != 8'h41) $fatal(1, "READ F-Code CAV/frame-lock flag");
+				4, 5: if (byte_read != 8'h40) $fatal(1, "READ F-Code player flag");
+				6: if (byte_read != 8'h0d) $fatal(1, "READ F-Code terminator");
+				default: if (byte_read != 8'h00) $fatal(1, "READ F-Code padding byte %0d", n);
+			endcase
 		end
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ F-Code status");
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ F-Code message");

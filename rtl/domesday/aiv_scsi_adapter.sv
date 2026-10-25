@@ -49,6 +49,10 @@ reg [8:0] block_base = 9'd0;
 reg [7:0] scsi_status = 8'h00;
 reg irq_enable = 1'b0;
 reg [7:0] host_id = 8'h00;
+reg [7:0] fcode_tx0 = 8'h00;
+reg [7:0] fcode_tx1 = 8'h00;
+reg [7:0] fcode_tx2 = 8'h00;
+reg [2:0] fcode_reply = 3'd0;
 reg req_asserted = 1'b0;
 reg [5:0] req_gap = 6'd0;
 
@@ -84,12 +88,37 @@ function automatic [7:0] inquiry_byte(input [5:0] index);
 	end
 endfunction
 
-// VP415/LV-DOS F-code replies are always a 256-byte block.  Before a video
-// back-end is connected, an empty reply is represented by a CR followed by
-// zero padding (the behaviour documented by Pi1MHz and the VP415 manual).
+// VP415/LV-DOS F-code replies are always a 256-byte block.  These are the
+// discovery replies VFS requires before it starts reading the LV-ROM.  They
+// match Pi1MHz: ?P says that a CAV, frame-locked disc is loaded and VPX says
+// that the player is in the hard-keyed overlay mode.  Other commands get the
+// VP415 empty reply (CR followed by padding) until the video back-end exists.
 function automatic [7:0] fcode_byte(input [8:0] index);
 	begin
-		fcode_byte = (index == 0) ? 8'h0d : 8'h00;
+		fcode_byte = 8'h00;
+		case (fcode_reply)
+			3'd1: case (index) // ?P: player status
+				0: fcode_byte = "P";
+				1: fcode_byte = 8'h60; // '@' + disc loaded
+				2: fcode_byte = 8'h41; // '@' + CAV / no chapters
+				3: fcode_byte = 8'h41; // '@' + frame lock / replay off
+				4: fcode_byte = 8'h40; // transmission delay, remote and RC off
+				5: fcode_byte = 8'h40; // both audio channels and teletext off
+				6: fcode_byte = 8'h0d;
+				default: fcode_byte = 8'h00;
+			endcase
+			3'd2: case (index) // VPX: video-overlay-mode query
+				0: fcode_byte = "V";
+				1: fcode_byte = "P";
+				2: fcode_byte = "3";
+				3: fcode_byte = 8'h0d;
+				default: fcode_byte = 8'h00;
+			endcase
+			3'd3: begin // ,1: player loaded and standing by
+				fcode_byte = (index == 0) ? "S" : ((index == 1) ? 8'h0d : 8'h00);
+			end
+			default: fcode_byte = (index == 0) ? 8'h0d : 8'h00;
+		endcase
 	end
 endfunction
 
@@ -159,6 +188,10 @@ always @(posedge clk) begin
 		cdb_count <= 4'd0;
 		irq_enable <= 1'b0;
 		host_id <= 8'h00;
+		fcode_tx0 <= 8'h00;
+		fcode_tx1 <= 8'h00;
+		fcode_tx2 <= 8'h00;
+		fcode_reply <= 3'd0;
 		req_asserted <= 1'b0;
 		req_gap <= 6'd0;
 	end else begin
@@ -282,7 +315,18 @@ always @(posedge clk) begin
 		// transaction prevents VFS initialisation from wedging at its first
 		// player probe.  A later decoder consumes this stream here.
 		if (strobe && !rnw && addr == 2'd0 && phase == PH_DATAOUT && req_asserted) begin
+			if (data_count == 0) fcode_tx0 <= din;
+			if (data_count == 1) fcode_tx1 <= din;
+			if (data_count == 2) fcode_tx2 <= din;
 			if (data_count == 9'd255) begin
+				if (fcode_tx0 == "?" && fcode_tx1 == "P")
+					fcode_reply <= 3'd1;
+				else if (fcode_tx0 == "V" && fcode_tx1 == "P" && fcode_tx2 == "X")
+					fcode_reply <= 3'd2;
+				else if (fcode_tx0 == "," && fcode_tx1 == "1")
+					fcode_reply <= 3'd3;
+				else
+					fcode_reply <= 3'd0;
 				scsi_status <= 8'h00;
 				data_reg <= 8'h00;
 				phase <= PH_STATUS;

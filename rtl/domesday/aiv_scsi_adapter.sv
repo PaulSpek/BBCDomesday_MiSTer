@@ -34,6 +34,7 @@ localparam [3:0] PH_READ_WAIT = 4'd3;
 localparam [3:0] PH_READ      = 4'd4;
 localparam [3:0] PH_STATUS    = 4'd5;
 localparam [3:0] PH_MESSAGE   = 4'd6;
+localparam [3:0] PH_DATAOUT   = 4'd7;
 
 reg [3:0] phase = PH_BUSFREE;
 reg [7:0] data_reg = 8'h00;
@@ -47,6 +48,7 @@ reg [31:0] current_block = 32'd0;
 reg [8:0] block_base = 9'd0;
 reg [7:0] scsi_status = 8'h00;
 reg irq_enable = 1'b0;
+reg [7:0] host_id = 8'h00;
 reg req_asserted = 1'b0;
 reg [5:0] req_gap = 6'd0;
 
@@ -79,6 +81,15 @@ function automatic [7:0] inquiry_byte(input [5:0] index);
 			34: inquiry_byte = "1"; 35: inquiry_byte = " ";
 			default: inquiry_byte = 8'h00;
 		endcase
+	end
+endfunction
+
+// VP415/LV-DOS F-code replies are always a 256-byte block.  Before a video
+// back-end is connected, an empty reply is represented by a CR followed by
+// zero padding (the behaviour documented by Pi1MHz and the VP415 manual).
+function automatic [7:0] fcode_byte(input [8:0] index);
+	begin
+		fcode_byte = (index == 0) ? 8'h0d : 8'h00;
 	end
 endfunction
 
@@ -147,6 +158,7 @@ always @(posedge clk) begin
 		data_reg <= 8'h00;
 		cdb_count <= 4'd0;
 		irq_enable <= 1'b0;
+		host_id <= 8'h00;
 		req_asserted <= 1'b0;
 		req_gap <= 6'd0;
 	end else begin
@@ -160,8 +172,10 @@ always @(posedge clk) begin
 		end
 
 		if (strobe && !rnw && addr == 2'd2) begin
-			// FC42: host asserts select. The data value is not used by the
-			// Pi1MHz-compatible target; one mounted VFS LUN is exposed.
+			// FC42: host asserts SELECT and presents its initiator ID.  VFS uses
+			// ID 16; preserving it is needed to distinguish its group-6 F-code
+			// protocol from the ordinary READ(6) command with the same opcode.
+			host_id <= din;
 			phase <= PH_COMMAND;
 			cdb_count <= 4'd0;
 			scsi_status <= 8'h00;
@@ -227,6 +241,31 @@ always @(posedge clk) begin
 						(cdb[7] == 0 ? {1'b0, cdb[8]} : 9'd256);
 					phase <= PH_READ_WAIT;
 				end
+				8'hca: begin // WRITE F-Code (group 6 / opcode 0x0a)
+					// LV-DOS sends a CR-terminated F-code, null padded to one
+					// 256-byte block.  Consume the whole block before status.
+					if (host_id == 8'h10) begin
+						data_count <= 9'd0;
+						data_length <= 9'd256;
+						phase <= PH_DATAOUT;
+					end else begin
+						scsi_status <= 8'h02;
+						data_reg <= 8'h02;
+						phase <= PH_STATUS;
+					end
+				end
+				8'hc8: begin // READ F-Code (group 6 / opcode 0x08)
+					if (host_id == 8'h10) begin
+						data_count <= 9'd0;
+						data_length <= 9'd256;
+						data_reg <= fcode_byte(0);
+						phase <= PH_DATA;
+					end else begin
+						scsi_status <= 8'h02;
+						data_reg <= 8'h02;
+						phase <= PH_STATUS;
+					end
+				end
 				default: begin
 					scsi_status <= 8'h02; // CHECK CONDITION
 					data_reg <= 8'h02;
@@ -235,6 +274,20 @@ always @(posedge clk) begin
 				endcase
 			end else begin
 				cdb_count <= cdb_count + 1'b1;
+			end
+		end
+
+		// Data-out is the missing half of the LV-DOS F-code protocol.  There
+		// is no video command back-end yet, but accepting the exact 256-byte
+		// transaction prevents VFS initialisation from wedging at its first
+		// player probe.  A later decoder consumes this stream here.
+		if (strobe && !rnw && addr == 2'd0 && phase == PH_DATAOUT && req_asserted) begin
+			if (data_count == 9'd255) begin
+				scsi_status <= 8'h00;
+				data_reg <= 8'h00;
+				phase <= PH_STATUS;
+			end else begin
+				data_count <= data_count + 1'b1;
 			end
 		end
 
@@ -265,6 +318,7 @@ always @(posedge clk) begin
 					data_count <= data_count + 1'b1;
 					if (cdb[0] == 8'h12) data_reg <= inquiry_byte(data_count + 1'b1);
 					else if (cdb[0] == 8'h03) data_reg <= sense_byte(data_count + 1'b1);
+					else if (cdb[0] == 8'hc8) data_reg <= fcode_byte(data_count + 1'b1);
 					else data_reg <= control_byte(cdb[0], data_count + 1'b1);
 				end
 			end

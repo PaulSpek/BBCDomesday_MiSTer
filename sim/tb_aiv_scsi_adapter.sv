@@ -135,6 +135,39 @@ module tb_aiv_scsi_adapter;
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ(6) status");
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ(6) message");
 
+		// VFS probes the VP415 player using group-6 F-code commands.  WRITE
+		// F-code is target data-out; READ F-code returns an empty CR-padded
+		// reply.  Both transfers must be exactly one 256-byte block.
+		fred_write(2'd2, 8'h10);
+		write_command_byte(8'hca);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		if (dout[7:5] != 3'b001) $fatal(1, "WRITE F-Code is not data-out: status=%02x", dout);
+		for (n = 0; n < 256; n = n + 1) begin
+			wait_req(1'b1);
+			fred_write(2'd0, n[7:0]);
+			wait_req(1'b0);
+		end
+		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "WRITE F-Code status");
+		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "WRITE F-Code message");
+
+		fred_write(2'd2, 8'h10);
+		write_command_byte(8'hc8);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		for (n = 0; n < 256; n = n + 1) begin
+			read_target_byte(byte_read);
+			if (byte_read != (n == 0 ? 8'h0d : 8'h00)) $fatal(1, "READ F-Code byte %0d", n);
+		end
+		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ F-Code status");
+		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ F-Code message");
+
 		$display("PASS tb_aiv_scsi_adapter");
 		$finish;
 	end

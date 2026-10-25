@@ -41,3 +41,4 @@ REMOTE_ACCESS.md
 **/.DS_Store
 sim/work/
 sim/transcript
+.remote-build/

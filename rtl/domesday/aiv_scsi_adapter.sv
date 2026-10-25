@@ -173,7 +173,11 @@ always @(posedge clk) begin
 		if (strobe && !rnw && addr == 2'd0 && phase == PH_COMMAND && req_asserted) begin
 			cdb[cdb_count] <= din;
 			if (cdb_count == 0) begin
-				cdb_length <= (din == 8'h28) ? 4'd10 : 4'd6;
+				// SCSI group 1 commands are always ten-byte CDBs.  In
+				// particular, READ CAPACITY(10) is 0x25 as well as READ(10)
+				// being 0x28; decoding only the latter prematurely entered
+				// data-in after six command bytes.
+				cdb_length <= (din[7:5] == 3'b001) ? 4'd10 : 4'd6;
 				cdb_count <= 4'd1;
 			end else if (cdb_count + 1'b1 == cdb_length) begin
 				cdb_count <= 4'd0;

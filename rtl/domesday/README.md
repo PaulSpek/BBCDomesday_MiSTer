@@ -26,6 +26,9 @@ The BBC core supplies an explicit 1 MHz transaction strobe, so the target
 handles each held 6502 bus access once rather than once per FPGA clock.
 A VFS volume must never be mounted as a floppy.
 
+`core/sim/tb_aiv_scsi_adapter.sv` is a bus-level regression for selection,
+the per-byte REQ/ACK handshake and the ten-byte `READ CAPACITY(10)` CDB.
+
 The third-party Pi1MHz VFS ROM is packed into fixed Master sideways-ROM slot
 8 (the otherwise unused slot) in `roms/rom.mif`. Regenerate that image with
 `tools/pack_vfs_rom.py` and a locally supplied, 16 KiB `VFS.rom`. The ROM

@@ -39,3 +39,5 @@ REMOTE_ACCESS.md
 *_netlist
 *.cdf
 **/.DS_Store
+sim/work/
+sim/transcript

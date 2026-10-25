@@ -18,6 +18,7 @@ module tb_aiv_scsi_adapter;
 	reg media_ready = 1'b0;
 	wire [8:0] media_addr;
 	reg [7:0] media_data = 8'h5a;
+	wire irq;
 	reg [7:0] byte_read;
 	integer n;
 
@@ -28,7 +29,7 @@ module tb_aiv_scsi_adapter;
 		.addr(addr), .din(din), .dout(dout),
 		.media_present(media_present), .media_size(media_size),
 		.media_read(media_read), .media_lba(media_lba), .media_ready(media_ready),
-		.media_addr(media_addr), .media_data(media_data)
+		.media_addr(media_addr), .media_data(media_data), .irq(irq)
 	);
 
 	task automatic wait_req(input bit wanted);
@@ -145,6 +146,7 @@ module tb_aiv_scsi_adapter;
 		write_command_byte(8'h00);
 		write_command_byte(8'h00);
 		write_command_byte(8'h00);
+		wait_req(1'b1);
 		if (dout[7:5] != 3'b001) $fatal(1, "WRITE F-Code is not data-out: status=%02x", dout);
 		for (n = 0; n < 256; n = n + 1) begin
 			wait_req(1'b1);

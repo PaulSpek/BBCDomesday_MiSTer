@@ -199,6 +199,7 @@ entity bbc_micro_core is
         aiv_scsi_addr  : out   std_logic_vector(1 downto 0);
         aiv_scsi_din   : out   std_logic_vector(7 downto 0);
         aiv_scsi_dout  : in    std_logic_vector(7 downto 0);
+		aiv_scsi_irq   : in    std_logic;
 
         -- Master Mode
         m128_mode      : in    std_logic;
@@ -1794,8 +1795,8 @@ begin
         "11111111"     when io_fred = '1' or io_jim = '1' else
         (others => '0'); -- un-decoded locations are pulled down by RP1
 
-    cpu_irq_n <= not ((not sys_via_irq_n) or (not user_via_irq_n) or (not mouse_via_irq_n) or acc_irr) when m128_mode = '1' else
-                 not ((not sys_via_irq_n) or (not user_via_irq_n) or (not mouse_via_irq_n));
+    cpu_irq_n <= not ((not sys_via_irq_n) or (not user_via_irq_n) or (not mouse_via_irq_n) or acc_irr or aiv_scsi_irq) when m128_mode = '1' else
+                 not ((not sys_via_irq_n) or (not user_via_irq_n) or (not mouse_via_irq_n) or aiv_scsi_irq);
     -- SRAM bus
     ext_nCS <= '0';
 

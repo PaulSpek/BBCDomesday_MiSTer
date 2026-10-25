@@ -457,6 +457,7 @@ wire        aiv_scsi_rnw;
 wire [1:0]  aiv_scsi_addr;
 wire [7:0]  aiv_scsi_din;
 wire [7:0]  aiv_scsi_dout;
+wire        aiv_scsi_irq;
 wire        aiv_scsi_media_read;
 wire [31:0] aiv_scsi_media_lba;
 wire        aiv_scsi_media_ready;
@@ -543,7 +544,8 @@ aiv_scsi_adapter aiv_scsi
 	.media_lba (aiv_scsi_media_lba),
 	.media_ready(aiv_scsi_media_ready),
 	.media_addr(aiv_scsi_media_addr),
-	.media_data(aiv_scsi_media_data)
+	.media_data(aiv_scsi_media_data),
+	.irq       (aiv_scsi_irq)
 );
 
 /////////////////  RESET  /////////////////////////
@@ -791,6 +793,7 @@ bbc_micro_core BBCMicro(
 	.aiv_scsi_addr(aiv_scsi_addr),
 	.aiv_scsi_din(aiv_scsi_din),
 	.aiv_scsi_dout(aiv_scsi_dout),
+	.aiv_scsi_irq(aiv_scsi_irq),
 	.m128_mode(m128),
 	.copro_mode(|status[6:5]),
 	

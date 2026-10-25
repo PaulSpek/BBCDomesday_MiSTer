@@ -20,6 +20,10 @@ module aiv_scsi_adapter
 	input             media_ready,
 	output      [8:0] media_addr,
 	input       [7:0] media_data
+	,
+	// The Pi1MHz host adapter latches an IRQ on REQ while FC43 bit 0 is
+	// enabled; VFS uses this rather than polling on several transfer paths.
+	output            irq
 );
 localparam [7:0] ST_CND = 8'h80;
 localparam [7:0] ST_INO = 8'h40;
@@ -48,6 +52,7 @@ reg [31:0] current_block = 32'd0;
 reg [8:0] block_base = 9'd0;
 reg [7:0] scsi_status = 8'h00;
 reg irq_enable = 1'b0;
+reg irq_pending = 1'b0;
 reg [7:0] host_id = 8'h00;
 reg [7:0] fcode_tx0 = 8'h00;
 reg [7:0] fcode_tx1 = 8'h00;
@@ -187,6 +192,7 @@ always @(posedge clk) begin
 		data_reg <= 8'h00;
 		cdb_count <= 4'd0;
 		irq_enable <= 1'b0;
+		irq_pending <= 1'b0;
 		host_id <= 8'h00;
 		fcode_tx0 <= 8'h00;
 		fcode_tx1 <= 8'h00;
@@ -215,7 +221,21 @@ always @(posedge clk) begin
 			req_asserted <= 1'b1;
 			req_gap <= 6'd0;
 		end
-		if (strobe && !rnw && addr == 2'd3) irq_enable <= din[0];
+		if (strobe && !rnw && addr == 2'd3) begin
+			irq_enable <= din[0];
+			// FC43=0 acknowledges/clears the active-low BBC IRQ.  Enabling
+			// it while REQ is already asserted immediately presents the IRQ,
+			// precisely as Pi1MHz's harddisc_emulator.c does.
+			if (!din[0]) irq_pending <= 1'b0;
+			else if (req_asserted) irq_pending <= 1'b1;
+		end
+
+		// A REQ edge is the event source.  Keep it latched until FC43=0;
+		// clearing it merely because the host ACKed FC40 loses the interrupt
+		// before VFS can service it.
+		if (!req_asserted && phase != PH_BUSFREE && phase != PH_READ_WAIT &&
+			req_gap == 0 && irq_enable)
+			irq_pending <= 1'b1;
 
 		if (strobe && !rnw && addr == 2'd0 && phase == PH_COMMAND && req_asserted) begin
 			cdb[cdb_count] <= din;
@@ -397,4 +417,6 @@ always @(posedge clk) begin
 		end
 	end
 end
+
+assign irq = irq_pending;
 endmodule

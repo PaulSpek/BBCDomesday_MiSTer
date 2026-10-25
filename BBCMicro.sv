@@ -458,6 +458,7 @@ wire [1:0]  aiv_scsi_addr;
 wire [7:0]  aiv_scsi_din;
 wire [7:0]  aiv_scsi_dout;
 wire        aiv_scsi_irq;
+wire        aiv_scsi_reset;
 wire        aiv_scsi_media_read;
 wire [31:0] aiv_scsi_media_lba;
 wire        aiv_scsi_media_ready;
@@ -531,7 +532,7 @@ domesday_vfs_media domesday_vfs
 aiv_scsi_adapter aiv_scsi
 (
 	.clk       (clk_sys),
-	.reset     (reset),
+	.reset     (reset | aiv_scsi_reset),
 	.cs        (aiv_scsi_cs),
 	.strobe    (aiv_scsi_strobe),
 	.rnw       (aiv_scsi_rnw),
@@ -794,6 +795,7 @@ bbc_micro_core BBCMicro(
 	.aiv_scsi_din(aiv_scsi_din),
 	.aiv_scsi_dout(aiv_scsi_dout),
 	.aiv_scsi_irq(aiv_scsi_irq),
+	.aiv_scsi_reset(aiv_scsi_reset),
 	.m128_mode(m128),
 	.copro_mode(|status[6:5]),
 	

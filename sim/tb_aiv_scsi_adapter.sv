@@ -177,6 +177,29 @@ module tb_aiv_scsi_adapter;
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ F-Code status");
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ F-Code message");
 
+		// Ctrl+Break may arrive in the middle of an unbounded VFS handshake.
+		// It must return the external adapter to BUS FREE so the next SELECT
+		// begins a clean command rather than continuing the abandoned CDB.
+		fred_write(2'd2, 8'h10);
+		write_command_byte(8'h08);
+		write_command_byte(8'h00);
+		reset = 1'b1;
+		repeat (2) @(posedge clk);
+		reset = 1'b0;
+		repeat (2) @(posedge clk);
+		addr = 2'd1;
+		rnw = 1'b1;
+		if (dout != 8'h00) $fatal(1, "Ctrl+Break did not return SCSI bus free: status=%02x", dout);
+		fred_write(2'd2, 8'h10);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		write_command_byte(8'h00);
+		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "post-reset TUR status");
+		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "post-reset TUR message");
+
 		$display("PASS tb_aiv_scsi_adapter");
 		$finish;
 	end

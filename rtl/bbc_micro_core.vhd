@@ -200,6 +200,7 @@ entity bbc_micro_core is
         aiv_scsi_din   : out   std_logic_vector(7 downto 0);
         aiv_scsi_dout  : in    std_logic_vector(7 downto 0);
 		aiv_scsi_irq   : in    std_logic;
+		aiv_scsi_reset : out   std_logic;
 
         -- Master Mode
         m128_mode      : in    std_logic;
@@ -2455,6 +2456,10 @@ begin
     aiv_scsi_rnw <= cpu_r_nw;
     aiv_scsi_addr <= cpu_a(1 downto 0);
     aiv_scsi_din <= cpu_do;
+	-- Ctrl+Break resets the BBC without asserting MiSTer's top-level reset.
+	-- The external AIV adapter must see that bus reset too, otherwise it can
+	-- remain stranded in the command/data phase that the reset interrupted.
+	aiv_scsi_reset <= reset;
 
 	 
 	     -- SDCLK is driven from either PB1 or CB1 depending on the SR Mode

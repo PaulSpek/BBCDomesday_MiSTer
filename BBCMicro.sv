@@ -452,6 +452,7 @@ wire [31:0] domesday_pvf_fps_num;
 wire [31:0] domesday_pvf_fps_den;
 wire [31:0] domesday_pvf_audio_hz;
 wire        aiv_scsi_cs;
+wire        aiv_scsi_strobe;
 wire        aiv_scsi_rnw;
 wire [1:0]  aiv_scsi_addr;
 wire [7:0]  aiv_scsi_din;
@@ -531,6 +532,7 @@ aiv_scsi_adapter aiv_scsi
 	.clk       (clk_sys),
 	.reset     (reset),
 	.cs        (aiv_scsi_cs),
+	.strobe    (aiv_scsi_strobe),
 	.rnw       (aiv_scsi_rnw),
 	.addr      (aiv_scsi_addr),
 	.din       (aiv_scsi_din),
@@ -784,6 +786,7 @@ bbc_micro_core BBCMicro(
 
 	.cpu_addr(), // IES: Debugging
 	.aiv_scsi_cs(aiv_scsi_cs),
+	.aiv_scsi_strobe(aiv_scsi_strobe),
 	.aiv_scsi_rnw(aiv_scsi_rnw),
 	.aiv_scsi_addr(aiv_scsi_addr),
 	.aiv_scsi_din(aiv_scsi_din),

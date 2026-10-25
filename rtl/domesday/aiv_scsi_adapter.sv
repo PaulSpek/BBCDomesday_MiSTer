@@ -8,6 +8,7 @@ module aiv_scsi_adapter
 	input             clk,
 	input             reset,
 	input             cs,
+	input             strobe,
 	input             rnw,
 	input       [1:0] addr,
 	input       [7:0] din,
@@ -136,8 +137,8 @@ end
 assign media_read = (phase == PH_READ_WAIT);
 assign media_lba = current_block >> 1;
 assign media_addr = (phase == PH_READ_WAIT) ? (current_block[0] ? 9'd256 : 9'd0) :
-	(phase == PH_READ && cs && rnw && addr == 2'd0 && data_count == 9'd255 && !current_block[0]) ? 9'd256 :
-	(phase == PH_READ && cs && rnw && addr == 2'd0 && data_count != 9'd255) ? block_base + data_count + 1'b1 :
+	(phase == PH_READ && strobe && rnw && addr == 2'd0 && data_count == 9'd255 && !current_block[0]) ? 9'd256 :
+	(phase == PH_READ && strobe && rnw && addr == 2'd0 && data_count != 9'd255) ? block_base + data_count + 1'b1 :
 	block_base + data_count;
 
 always @(posedge clk) begin
@@ -158,7 +159,7 @@ always @(posedge clk) begin
 			else req_gap <= req_gap - 1'b1;
 		end
 
-		if (cs && !rnw && addr == 2'd2) begin
+		if (strobe && !rnw && addr == 2'd2) begin
 			// FC42: host asserts select. The data value is not used by the
 			// Pi1MHz-compatible target; one mounted VFS LUN is exposed.
 			phase <= PH_COMMAND;
@@ -167,9 +168,9 @@ always @(posedge clk) begin
 			req_asserted <= 1'b1;
 			req_gap <= 6'd0;
 		end
-		if (cs && !rnw && addr == 2'd3) irq_enable <= din[0];
+		if (strobe && !rnw && addr == 2'd3) irq_enable <= din[0];
 
-		if (cs && !rnw && addr == 2'd0 && phase == PH_COMMAND && req_asserted) begin
+		if (strobe && !rnw && addr == 2'd0 && phase == PH_COMMAND && req_asserted) begin
 			cdb[cdb_count] <= din;
 			if (cdb_count == 0) begin
 				cdb_length <= (din == 8'h28) ? 4'd10 : 4'd6;
@@ -244,13 +245,13 @@ always @(posedge clk) begin
 
 		// FC40 is ACK for both directions. Leave REQ inactive long enough for
 		// the 2 MHz host to observe it before presenting the following byte.
-		if (cs && addr == 2'd0 && req_asserted) begin
+		if (strobe && addr == 2'd0 && req_asserted) begin
 			req_asserted <= 1'b0;
 			req_gap <= 6'd32;
 		end
 
 		// A FC40 read is the host acknowledge for target-to-host phases.
-		if (cs && rnw && addr == 2'd0 && req_asserted) begin
+		if (strobe && rnw && addr == 2'd0 && req_asserted) begin
 			case (phase)
 			PH_DATA: begin
 				if (data_count + 1'b1 >= data_length) begin

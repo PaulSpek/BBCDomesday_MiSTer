@@ -22,6 +22,8 @@ READY`, `REQUEST SENSE`, `MODE SENSE(6)`, `START/STOP`, `READ CAPACITY(10)`,
 `READ(6)` and `READ(10)` phases. `READ CAPACITY` reports 256-byte logical
 blocks, matching the VFS/LV-ROM protocol. Its AIV bus front end also models
 the per-byte REQ/ACK edge (including a brief REQ release) required by VFS.
+The BBC core supplies an explicit 1 MHz transaction strobe, so the target
+handles each held 6502 bus access once rather than once per FPGA clock.
 A VFS volume must never be mounted as a floppy.
 
 The third-party Pi1MHz VFS ROM is packed into fixed Master sideways-ROM slot

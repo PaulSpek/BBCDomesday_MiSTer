@@ -194,6 +194,7 @@ entity bbc_micro_core is
 
         -- Acorn AIV SCSI host-adapter expansion at FRED &FC40-&FC43.
         aiv_scsi_cs    : out   std_logic;
+		aiv_scsi_strobe: out   std_logic;
         aiv_scsi_rnw   : out   std_logic;
         aiv_scsi_addr  : out   std_logic_vector(1 downto 0);
         aiv_scsi_din   : out   std_logic_vector(7 downto 0);
@@ -2447,6 +2448,9 @@ begin
     -- Debugging output
     cpu_addr <= cpu_a(15 downto 0);
     aiv_scsi_cs <= aiv_scsi_enable;
+	-- The address decode remains asserted throughout a stretched 1 MHz CPU
+	-- cycle.  External AIV logic needs the single access pulse, not that level.
+    aiv_scsi_strobe <= aiv_scsi_enable and mhz1_clken;
     aiv_scsi_rnw <= cpu_r_nw;
     aiv_scsi_addr <= cpu_a(1 downto 0);
     aiv_scsi_din <= cpu_do;

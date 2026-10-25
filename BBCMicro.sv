@@ -456,6 +456,11 @@ wire        aiv_scsi_rnw;
 wire [1:0]  aiv_scsi_addr;
 wire [7:0]  aiv_scsi_din;
 wire [7:0]  aiv_scsi_dout;
+wire        aiv_scsi_media_read;
+wire [31:0] aiv_scsi_media_lba;
+wire        aiv_scsi_media_ready;
+wire [8:0]  aiv_scsi_media_addr;
+wire [7:0]  aiv_scsi_media_data;
 
 domesday_bridge domesday
 (
@@ -501,6 +506,11 @@ domesday_vfs_media domesday_vfs
 	.present     (domesday_vfs_present),
 	.valid       (domesday_vfs_valid),
 	.size        (domesday_vfs_size),
+	.read_request(aiv_scsi_media_read),
+	.read_lba    (aiv_scsi_media_lba),
+	.read_ready  (aiv_scsi_media_ready),
+	.cache_addr  (aiv_scsi_media_addr),
+	.cache_data  (aiv_scsi_media_data),
 	.sd_lba      (sd_lba[4]),
 	.sd_blk_cnt  (sd_blk_cnt[4]),
 	.sd_rd       (sd_rd[4]),
@@ -518,14 +528,19 @@ domesday_vfs_media domesday_vfs
 // interface.
 aiv_scsi_adapter aiv_scsi
 (
-	.clk       (clk_48),
+	.clk       (clk_sys),
 	.reset     (reset),
 	.cs        (aiv_scsi_cs),
 	.rnw       (aiv_scsi_rnw),
 	.addr      (aiv_scsi_addr),
 	.din       (aiv_scsi_din),
 	.dout      (aiv_scsi_dout),
-	.media_present(domesday_vfs_valid)
+	.media_present(domesday_vfs_valid),
+	.media_read(aiv_scsi_media_read),
+	.media_lba (aiv_scsi_media_lba),
+	.media_ready(aiv_scsi_media_ready),
+	.media_addr(aiv_scsi_media_addr),
+	.media_data(aiv_scsi_media_data)
 );
 
 /////////////////  RESET  /////////////////////////
@@ -602,6 +617,7 @@ always_comb begin
 		'b0_11_11: rom_addr[17:14] =  3; //bbcb/basic2.rom           
 		'b1_00_11: rom_addr[17:14] = mmfsv1 ?  5 : 15;  //m128/mammfs.rom  (v1) //m128/mammfs.rom (v2)	
 		'b1_01_00: rom_addr[17:14] =  6; //m128/mos.rom          
+		'b1_10_00: rom_addr[17:14] = 14; //VFS.rom, fixed Domesday sideways ROM in slot 8
 		'b1_10_01: rom_addr[17:14] =  7; //m128/dfs.rom          
 		'b1_10_10: rom_addr[17:14] =  8; //m128/viewsht.rom      
 		'b1_10_11: rom_addr[17:14] =  9; //m128/edit.rom         
@@ -619,6 +635,7 @@ always_comb begin
 		'b0_11_10,
 		'b0_11_11,	
 		'b1_01_00,
+		'b1_10_00,
 		'b1_10_10,
 		'b1_10_11,
 		'b1_11_00,

@@ -15,9 +15,17 @@ lights after the header passes validation. Video records are not streamed or
 decoded yet, so BBC video and audio remain unchanged.
 
 `domesday_vfs_media.sv` owns slot 4, reserved for a separate read-only
-`scsi0.dat` LV-ROM volume. It proves that the mounted volume can be read at
-the MiSTer block boundary. The next layer is an Acorn AIV SCSI target visible
-to the BBC at `&FC40-&FC43`; a VFS volume must never be mounted as a floppy.
+`scsi0.dat` LV-ROM volume. It provides a one-sector (512-byte) cache to the
+AIV target, which presents the volume as 256-byte SCSI blocks. The target at
+`&FC40-&FC43` implements discovery plus read-only `INQUIRY`, `TEST UNIT
+READY`, `REQUEST SENSE`, `READ(6)` and `READ(10)` phases. A VFS volume must
+never be mounted as a floppy.
+
+The third-party Pi1MHz VFS ROM is packed into fixed Master sideways-ROM slot
+8 (the otherwise unused slot) in `roms/rom.mif`. Regenerate that image with
+`tools/pack_vfs_rom.py` and a locally supplied, 16 KiB `VFS.rom`. The ROM
+remains third-party Acorn software; its provenance is documented in the
+Pi1MHz credits.
 
 ## Planned phases
 

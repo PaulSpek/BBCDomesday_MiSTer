@@ -1,57 +1,224 @@
-// Acorn AIV / Pi1MHz compatible register boundary at BBC FRED &FC40-&FC43.
+// Read-only Acorn AIV / Pi1MHz-compatible SCSI target at BBC FRED &FC40-43.
 //
-// Bit order of FC41: C/D, I/O, REQ, IRQ, spare, spare, BSY, MSG.
-// A data register access consumes REQ in the same clocked action, matching
-// the real adapter's behaviour and avoiding stale-REQ polling races.
+// The target implements the small command set required to discover and read a
+// VFS/LV-ROM LUN.  SCSI blocks are 256 bytes; the media cache below operates
+// on MiSTer's native 512-byte sectors.
 module aiv_scsi_adapter
 (
-	input        clk,
-	input        reset,
-	input        cs,
-	input        rnw,
-	input  [1:0] addr,
-	input  [7:0] din,
-	output reg [7:0] dout,
-	input        media_present
+	input             clk,
+	input             reset,
+	input             cs,
+	input             rnw,
+	input       [1:0] addr,
+	input       [7:0] din,
+	output reg  [7:0] dout,
+	input             media_present,
+	output            media_read,
+	output      [31:0] media_lba,
+	input             media_ready,
+	output      [8:0] media_addr,
+	input       [7:0] media_data
 );
 localparam [7:0] ST_CND = 8'h80;
+localparam [7:0] ST_INO = 8'h40;
 localparam [7:0] ST_REQ = 8'h20;
 localparam [7:0] ST_BSY = 8'h02;
+localparam [7:0] ST_MSG = 8'h01;
 
+localparam [3:0] PH_BUSFREE   = 4'd0;
+localparam [3:0] PH_COMMAND   = 4'd1;
+localparam [3:0] PH_DATA      = 4'd2;
+localparam [3:0] PH_READ_WAIT = 4'd3;
+localparam [3:0] PH_READ      = 4'd4;
+localparam [3:0] PH_STATUS    = 4'd5;
+localparam [3:0] PH_MESSAGE   = 4'd6;
+
+reg [3:0] phase = PH_BUSFREE;
 reg [7:0] data_reg = 8'h00;
-reg [7:0] status_reg = 8'h00;
-reg       irq_enable = 1'b0;
+reg [7:0] cdb [0:9];
+reg [3:0] cdb_count = 4'd0;
+reg [3:0] cdb_length = 4'd6;
+reg [8:0] data_count = 9'd0;
+reg [8:0] data_length = 9'd0;
+reg [8:0] blocks_left = 9'd0;
+reg [31:0] current_block = 32'd0;
+reg [8:0] block_base = 9'd0;
+reg [7:0] scsi_status = 8'h00;
+reg irq_enable = 1'b0;
+
+function automatic [7:0] inquiry_byte(input [5:0] index);
+	begin
+		case (index)
+			 0: inquiry_byte = 8'h00; // direct-access block device
+			 1: inquiry_byte = 8'h80; // removable
+			 2: inquiry_byte = 8'h01;
+			 3: inquiry_byte = 8'h02;
+			 4: inquiry_byte = 8'd31;
+			 8: inquiry_byte = "M";  9: inquiry_byte = "i";
+			10: inquiry_byte = "S"; 11: inquiry_byte = "T";
+			12: inquiry_byte = "e"; 13: inquiry_byte = "r";
+			14: inquiry_byte = " "; 15: inquiry_byte = " ";
+			16: inquiry_byte = "D"; 17: inquiry_byte = "o";
+			18: inquiry_byte = "m"; 19: inquiry_byte = "e";
+			20: inquiry_byte = "s"; 21: inquiry_byte = "d";
+			22: inquiry_byte = "a"; 23: inquiry_byte = "y";
+			24: inquiry_byte = " "; 25: inquiry_byte = "V";
+			26: inquiry_byte = "F"; 27: inquiry_byte = "S";
+			28: inquiry_byte = " "; 29: inquiry_byte = " ";
+			30: inquiry_byte = " "; 31: inquiry_byte = " ";
+			32: inquiry_byte = "0"; 33: inquiry_byte = ".";
+			34: inquiry_byte = "1"; 35: inquiry_byte = " ";
+			default: inquiry_byte = 8'h00;
+		endcase
+	end
+endfunction
+
+function automatic [7:0] sense_byte(input [4:0] index);
+	begin
+		case (index)
+			0: sense_byte = 8'h70;
+			2: sense_byte = media_present ? 8'h00 : 8'h02; // not ready
+			7: sense_byte = 8'd10;
+			default: sense_byte = 8'h00;
+		endcase
+	end
+endfunction
 
 always @* begin
 	case (addr)
 		2'd0: dout = data_reg;
-		2'd1: dout = status_reg;
+		2'd1: begin
+			dout = 8'h00;
+			if (phase != PH_BUSFREE) dout = ST_BSY | ST_REQ;
+			if (phase == PH_COMMAND || phase == PH_STATUS || phase == PH_MESSAGE)
+				dout = dout | ST_CND;
+			if (phase == PH_DATA || phase == PH_READ || phase == PH_STATUS || phase == PH_MESSAGE)
+				dout = dout | ST_INO;
+			if (phase == PH_MESSAGE) dout = dout | ST_MSG;
+		end
 		default: dout = 8'hFF;
 	endcase
 end
 
+assign media_read = (phase == PH_READ_WAIT);
+assign media_lba = current_block >> 1;
+assign media_addr = (phase == PH_READ_WAIT) ? (current_block[0] ? 9'd256 : 9'd0) :
+	(phase == PH_READ && cs && rnw && addr == 2'd0 && data_count == 9'd255 && !current_block[0]) ? 9'd256 :
+	(phase == PH_READ && cs && rnw && addr == 2'd0 && data_count != 9'd255) ? block_base + data_count + 1'b1 :
+	block_base + data_count;
+
 always @(posedge clk) begin
-	if (reset) begin
+	if (reset || !media_present) begin
+		phase <= PH_BUSFREE;
 		data_reg <= 8'h00;
-		status_reg <= 8'h00;
+		cdb_count <= 4'd0;
 		irq_enable <= 1'b0;
-	end else if (cs && !rnw) begin
-		case (addr)
-		2'd0: begin
-			data_reg <= din;
-			status_reg <= status_reg & ~ST_REQ;
+	end else begin
+		if (cs && !rnw && addr == 2'd2) begin
+			// FC42: host asserts select. The data value is not used by the
+			// Pi1MHz-compatible target; one mounted VFS LUN is exposed.
+			phase <= PH_COMMAND;
+			cdb_count <= 4'd0;
+			scsi_status <= 8'h00;
 		end
-		// FC41 is reserved for VFS jukebox selection; retain the byte now
-		// so the later command engine can consume it without changing the bus.
-		2'd1: data_reg <= din;
-		2'd2: begin
-			if (media_present) status_reg <= ST_CND | ST_BSY | ST_REQ;
-			else status_reg <= 8'h00;
+		if (cs && !rnw && addr == 2'd3) irq_enable <= din[0];
+
+		if (cs && !rnw && addr == 2'd0 && phase == PH_COMMAND) begin
+			cdb[cdb_count] <= din;
+			if (cdb_count == 0) begin
+				cdb_length <= (din == 8'h28) ? 4'd10 : 4'd6;
+				cdb_count <= 4'd1;
+			end else if (cdb_count + 1'b1 == cdb_length) begin
+				cdb_count <= 4'd0;
+				case (cdb[0])
+				8'h00: begin // TEST UNIT READY
+					scsi_status <= 8'h00;
+					data_reg <= 8'h00;
+					phase <= PH_STATUS;
+				end
+				8'h03: begin // REQUEST SENSE
+					data_count <= 9'd0;
+					data_length <= (cdb[4] < 18) ? cdb[4] : 9'd18;
+					data_reg <= sense_byte(0);
+					phase <= (cdb[4] == 0) ? PH_STATUS : PH_DATA;
+				end
+				8'h12: begin // INQUIRY
+					data_count <= 9'd0;
+					data_length <= (cdb[4] < 36) ? cdb[4] : 9'd36;
+					data_reg <= inquiry_byte(0);
+					phase <= (cdb[4] == 0) ? PH_STATUS : PH_DATA;
+				end
+				8'h08: begin // READ(6), 256-byte SCSI blocks
+					current_block <= {11'd0, cdb[1][4:0], cdb[2], cdb[3]};
+					blocks_left <= (cdb[4] == 0) ? 9'd256 : {1'b0, cdb[4]};
+					phase <= PH_READ_WAIT;
+				end
+				8'h28: begin // READ(10), 256-byte SCSI blocks
+					current_block <= {cdb[2], cdb[3], cdb[4], cdb[5]};
+					blocks_left <= ({cdb[7], cdb[8]} == 0) ? 9'd1 :
+						(cdb[7] == 0 ? {1'b0, cdb[8]} : 9'd256);
+					phase <= PH_READ_WAIT;
+				end
+				default: begin
+					scsi_status <= 8'h02; // CHECK CONDITION
+					data_reg <= 8'h02;
+					phase <= PH_STATUS;
+				end
+				endcase
+			end else begin
+				cdb_count <= cdb_count + 1'b1;
+			end
 		end
-		2'd3: irq_enable <= din[0];
-		endcase
-	end else if (!media_present) begin
-		status_reg <= 8'h00;
+
+		if (phase == PH_READ_WAIT && media_ready) begin
+			block_base <= current_block[0] ? 9'd256 : 9'd0;
+			data_count <= 9'd0;
+			data_reg <= media_data;
+			phase <= PH_READ;
+		end
+
+		// A FC40 read is the host acknowledge for target-to-host phases.
+		if (cs && rnw && addr == 2'd0) begin
+			case (phase)
+			PH_DATA: begin
+				if (data_count + 1'b1 >= data_length) begin
+					data_reg <= scsi_status;
+					phase <= PH_STATUS;
+				end else begin
+					data_count <= data_count + 1'b1;
+					if (cdb[0] == 8'h12) data_reg <= inquiry_byte(data_count + 1'b1);
+					else data_reg <= sense_byte(data_count + 1'b1);
+				end
+			end
+			PH_READ: begin
+				if (data_count == 9'd255) begin
+					if (blocks_left == 9'd1) begin
+						data_reg <= scsi_status;
+						phase <= PH_STATUS;
+					end else if (!current_block[0]) begin
+						current_block <= current_block + 1'b1;
+						blocks_left <= blocks_left - 1'b1;
+						block_base <= 9'd256;
+						data_count <= 9'd0;
+						data_reg <= media_data;
+					end else begin
+						current_block <= current_block + 1'b1;
+						blocks_left <= blocks_left - 1'b1;
+						phase <= PH_READ_WAIT;
+					end
+				end else begin
+					data_count <= data_count + 1'b1;
+					data_reg <= media_data;
+				end
+			end
+			PH_STATUS: begin
+				data_reg <= 8'h00;
+				phase <= PH_MESSAGE;
+			end
+			PH_MESSAGE: phase <= PH_BUSFREE;
+			default: ;
+			endcase
+		end
 	end
 end
 endmodule

@@ -52,35 +52,35 @@ module jpeg_idct_transpose_ram
 
 //-----------------------------------------------------------------
 // Dual Port RAM
-// Mode: Read First
+// Mode: Read First.  Explicit MLAB mapping avoids a large register fallback
+// when this dual-clock scratch RAM is instantiated below the BBC hierarchy.
 //-----------------------------------------------------------------
-/* verilator lint_off MULTIDRIVEN */
-reg [31:0]   ram [31:0] /*verilator public*/;
-/* verilator lint_on MULTIDRIVEN */
-
-reg [31:0] ram_read0_q;
-reg [31:0] ram_read1_q;
-
-
-// Synchronous write
-always @ (posedge clk0_i)
-begin
-    if (wr0_i)
-        ram[addr0_i][31:0] <= data0_i[31:0];
-
-    ram_read0_q <= ram[addr0_i];
-end
-
-always @ (posedge clk1_i)
-begin
-    // port 1 is read-only (wr1_i is 0 at every instance); a second write
-    // process stops Quartus 17 inferring the RAM (Error 10028)
-    ram_read1_q <= ram[addr1_i];
-end
-
-
-assign data0_o = ram_read0_q;
-assign data1_o = ram_read1_q;
+altsyncram ram
+(
+    .clock0(clk0_i), .clock1(clk1_i),
+    .address_a(addr0_i), .data_a(data0_i), .wren_a(wr0_i), .q_a(data0_o),
+    .address_b(addr1_i), .data_b(32'd0), .wren_b(1'b0), .q_b(data1_o),
+    .aclr0(1'b0), .aclr1(1'b0),
+    .addressstall_a(1'b0), .addressstall_b(1'b0),
+    .byteena_a(1'b1), .byteena_b(1'b1),
+    .clocken0(1'b1), .clocken1(1'b1), .clocken2(1'b1), .clocken3(1'b1),
+    .eccstatus(), .rden_a(1'b1), .rden_b(1'b1)
+);
+defparam
+    ram.operation_mode = "BIDIR_DUAL_PORT",
+    ram.width_a = 32, ram.widthad_a = 5, ram.numwords_a = 32,
+    ram.width_b = 32, ram.widthad_b = 5, ram.numwords_b = 32,
+    ram.address_reg_b = "CLOCK1",
+    ram.outdata_reg_a = "UNREGISTERED",
+    ram.outdata_reg_b = "UNREGISTERED",
+    ram.ram_block_type = "MLAB",
+    ram.intended_device_family = "Cyclone V",
+    ram.lpm_type = "altsyncram",
+    ram.power_up_uninitialized = "TRUE",
+    ram.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",
+    ram.read_during_write_mode_port_b = "NEW_DATA_NO_NBE_READ",
+    ram.width_byteena_a = 1,
+    ram.width_byteena_b = 1;
 
 
 

@@ -7,9 +7,9 @@ try {
         & (Join-Path $ModelSim 'vlib.exe') work
         if ($LASTEXITCODE -ne 0) { throw 'vlib failed' }
     }
-    & (Join-Path $ModelSim 'vlog.exe') -sv ../rtl/domesday/sideways_rom_bank.sv tb_sideways_rom_bank.sv
+    & (Join-Path $ModelSim 'vlog.exe') -sv ../rtl/domesday/sideways_rom_bank.sv ../rtl/domesday/packed_bbc_rom.sv tb_sideways_rom_bank.sv tb_packed_bbc_rom.sv
     if ($LASTEXITCODE -ne 0) { throw 'ROM-loader compilation failed' }
-    foreach ($top in 'tb_sideways_rom_bank') {
+    foreach ($top in 'tb_sideways_rom_bank','tb_packed_bbc_rom') {
         $output = & (Join-Path $ModelSim 'vsim.exe') -c $top -do 'run -all; quit -f' 2>&1
         $code = $LASTEXITCODE
         $output | Write-Output

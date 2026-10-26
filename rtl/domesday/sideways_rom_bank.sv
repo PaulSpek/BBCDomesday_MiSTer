@@ -1,8 +1,7 @@
 // Four shared OSD ROM images, available in slots 0..3 in either BBC model.
 //
-// All slots share one M10K-backed store. Each 16 KiB image occupies 4096
-// 32-bit words, keeping slot
-// uploads independent while using every bit of the physical RAM blocks.
+// All slots share a single-port M10K store. Each image occupies 3277 40-bit
+// words. Reads share the upload address port while the CPU is held in reset.
 module sideways_rom_bank (
     input clk,
     input [1:0] read_slot,
@@ -16,11 +15,11 @@ module sideways_rom_bank (
     input [7:0] write_data,
     output loading
 );
-    localparam integer WORDS_PER_SLOT = 4096;
+    localparam integer WORDS_PER_SLOT = 3277;
     localparam integer TOTAL_WORDS = 4 * WORDS_PER_SLOT;
 
     (* ramstyle = "M10K, no_rw_check", ram_init_file = "roms/cartridge_roms_packed.mif" *)
-    reg [31:0] memory [0:TOTAL_WORDS-1];
+    reg [39:0] memory [0:TOTAL_WORDS-1];
 
     reg [3:0] valid_slots = 4'b0010; // diagnostic ROM powers up in slot 1
     wire selected = file_index >= 8'd5 && file_index <= 8'd8;
@@ -28,11 +27,11 @@ module sideways_rom_bank (
     assign loading = download && selected;
     assign valid = valid_slots[read_slot];
 
-    wire [11:0] read_local_group = read_addr[13:2];
-    wire  [1:0] read_lane = read_addr[1:0];
+    wire [11:0] read_local_group = read_addr / 14'd5;
+    wire  [2:0] read_lane = read_addr % 14'd5;
     wire [13:0] read_group = read_slot * WORDS_PER_SLOT + read_local_group;
-    reg  [31:0] read_word = 32'd0;
-    reg   [1:0] read_lane_q = 2'd0;
+    reg  [39:0] read_word = 40'd0;
+    reg   [2:0] read_lane_q = 3'd0;
     assign read_data = read_word[{read_lane_q, 3'b000} +: 8];
 
     reg        was_loading = 1'b0;
@@ -41,10 +40,20 @@ module sideways_rom_bank (
     reg        bad_transfer = 1'b0;
     reg [31:0] upload_prefix = 32'd0;
     reg [13:0] write_group = 14'd0;
-    reg  [1:0] write_lane = 2'd0;
+    reg  [2:0] write_lane = 3'd0;
+    wire valid_byte = loading && write_enable &&
+        !(was_loading && load_slot != active_slot) && write_addr < 25'd16384 &&
+        write_addr == (was_loading ? {10'd0, expected_addr} : 25'd0);
+    wire tail = write_addr == 25'd16383;
+    wire commit_word = valid_byte && was_loading && write_addr != 0 &&
+        (tail || write_lane == 3'd4);
+    wire [13:0] memory_address = commit_word ? write_group : read_group;
+    wire [39:0] memory_data = tail ? {8'd0, write_data, upload_prefix[23:0]} :
+                                                   {write_data, upload_prefix};
 
     always @(posedge clk) begin
-        read_word <= memory[read_group];
+        read_word <= memory[memory_address];
+        if (commit_word) memory[memory_address] <= memory_data;
         read_lane_q <= read_lane;
         was_loading <= loading;
 
@@ -55,7 +64,7 @@ module sideways_rom_bank (
             bad_transfer <= 1'b0;
             upload_prefix <= 32'd0;
             write_group <= load_slot * WORDS_PER_SLOT;
-            write_lane <= 2'd0;
+            write_lane <= 3'd0;
         end
 
         if (loading && write_enable) begin
@@ -65,14 +74,12 @@ module sideways_rom_bank (
             end else begin
                 if (!was_loading || write_addr == 25'd0) begin
                     upload_prefix[7:0] <= write_data;
-                    write_lane <= 2'd1;
+                    write_lane <= 3'd1;
                 end else if (write_addr == 25'd16383) begin
-                    memory[write_group] <= {write_data, upload_prefix[23:0]};
-                    write_lane <= 2'd0;
-                end else if (write_lane == 2'd3) begin
-                    memory[write_group] <= {write_data, upload_prefix[23:0]};
+                    write_lane <= 3'd0;
+                end else if (write_lane == 3'd4) begin
                     write_group <= write_group + 1'b1;
-                    write_lane <= 2'd0;
+                    write_lane <= 3'd0;
                 end else begin
                     upload_prefix[{write_lane, 3'b000} +: 8] <= write_data;
                     write_lane <= write_lane + 1'b1;

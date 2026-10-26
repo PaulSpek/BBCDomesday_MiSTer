@@ -58,6 +58,7 @@ reg [7:0] fcode_tx0 = 8'h00;
 reg [7:0] fcode_tx1 = 8'h00;
 reg [7:0] fcode_tx2 = 8'h00;
 reg [2:0] fcode_reply = 3'd0;
+reg [1:0] debug_read = 2'd0;
 reg req_asserted = 1'b0;
 reg [5:0] req_gap = 6'd0;
 
@@ -164,7 +165,11 @@ endfunction
 
 always @* begin
 	case (addr)
-		2'd0: dout = data_reg;
+		2'd0: begin
+			if (debug_read == 2'd1) dout = data_count[7:0];
+			else if (debug_read == 2'd2) dout = {4'b0000, phase};
+			else dout = data_reg;
+		end
 		2'd1: begin
 			dout = 8'h00;
 			if (phase != PH_BUSFREE) dout = ST_BSY;
@@ -181,8 +186,8 @@ always @* begin
 		// Keeping the adapter's counter and phase observable lets the BBC
 		// diagnostic distinguish a genuine short DATA OUT from duplicate bus
 		// strobes that make the target reach STATUS too early.
-		2'd2: dout = data_count[7:0];
-		2'd3: dout = {4'b0000, phase};
+		2'd2: dout = 8'hFF;
+		2'd3: dout = 8'hFF;
 	endcase
 end
 
@@ -205,6 +210,7 @@ always @(posedge clk) begin
 		fcode_tx1 <= 8'h00;
 		fcode_tx2 <= 8'h00;
 		fcode_reply <= 3'd0;
+		debug_read <= 2'd0;
 		req_asserted <= 1'b0;
 		req_gap <= 6'd0;
 	end else begin
@@ -229,12 +235,18 @@ always @(posedge clk) begin
 			req_gap <= 6'd0;
 		end
 		if (strobe && !rnw && addr == 2'd3) begin
-			irq_enable <= din[0];
-			// FC43=0 acknowledges/clears the active-low BBC IRQ.  Enabling
-			// it while REQ is already asserted immediately presents the IRQ,
-			// precisely as Pi1MHz's harddisc_emulator.c does.
-			if (!din[0]) irq_pending <= 1'b0;
-			else if (req_asserted) irq_pending <= 1'b1;
+			if (din == 8'hD1) begin
+				debug_read <= 2'd1;
+			end else if (din == 8'hD2) begin
+				debug_read <= 2'd2;
+			end else begin
+				irq_enable <= din[0];
+				// FC43=0 acknowledges/clears the active-low BBC IRQ.  Enabling
+				// it while REQ is already asserted immediately presents the IRQ,
+				// precisely as Pi1MHz's harddisc_emulator.c does.
+				if (!din[0]) irq_pending <= 1'b0;
+				else if (req_asserted) irq_pending <= 1'b1;
+			end
 		end
 
 		// A REQ edge is the event source.  Keep it latched until FC43=0;
@@ -380,7 +392,9 @@ always @(posedge clk) begin
 
 		// A FC40 read is the host acknowledge for target-to-host phases.
 		if (strobe && rnw && addr == 2'd0 && req_asserted) begin
-			case (phase)
+			if (debug_read != 2'd0) begin
+				debug_read <= 2'd0;
+			end else case (phase)
 			PH_DATA: begin
 				if (data_count + 1'b1 >= data_length) begin
 					data_reg <= scsi_status;

@@ -74,11 +74,12 @@ CDB/data loop, so its value is only diagnostic for the streaming tests.
 
 The next temporary diagnostic-core build additionally prints `DC=nn PH=n`
 after a failure. `DC` is the adapter's internal low-byte transfer counter;
-`PH` is its internal phase number (`5` is status and `7` is data-out). These
-readbacks occupy the otherwise unused read sides of `&FC42` and `&FC43`; their
-write behaviour remains the normal SELECT and IRQ-enable interface. They are
-for the hardware diagnosis only and will be removed or replaced by a stable
-status interface after the F-code mismatch is resolved.
+`PH` is its internal phase number (`5` is status and `7` is data-out). The
+diagnostic selects these readbacks with the otherwise unused FC43 write values
+`&D1` and `&D2`, then reads the result through FC40, a path already proven on
+the BBC. Normal FC43 values retain their IRQ-enable behaviour. This is for
+hardware diagnosis only and will be removed or replaced by a stable status
+interface after the F-code mismatch is resolved.
 
 BeebEm check (2026-10-26): the initial ROM printed each diagnostic line over
 the preceding one because it sent CR through OSWRCH. Text now uses OSASCI,

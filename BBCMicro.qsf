@@ -17,8 +17,9 @@ set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"
 
 set_global_assignment -name GENERATE_RBF_FILE ON
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
-# Quartus 17.0.2 is installed on the build host; use its parallel flow.
-set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+# Quartus 17.0.2 intermittently crashes in the two-worker physical-synthesis
+# pass on STUDEER. Use one worker for reliable Domesday release builds.
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 1
 set_global_assignment -name SAVE_DISK_SPACE OFF
 # A full build must run after an interrupted Quartus flow; otherwise stale
 # assembler/timing artefacts can be reported as a successful compile.

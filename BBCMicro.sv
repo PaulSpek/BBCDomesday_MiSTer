@@ -567,6 +567,11 @@ reg  [7:0] rom_dout;
 reg  [7:0] rom_data;
 
 (* ram_init_file = "roms/rom.mif" *) reg [7:0] rom[16 * 16384];
+// Independent service ROM in Master sideways slot 1. It is generated from
+// roms/scsi_diag.asm; keeping it separate avoids repacking third-party ROMs.
+(* ram_init_file = "roms/scsi_diag.hex" *) reg [7:0] scsi_diag_rom[16384];
+reg [7:0] scsi_diag_dout;
+always @(posedge clk_sys) scsi_diag_dout <= scsi_diag_rom[mem_addr[13:0]];
 always @(posedge clk_sys) if(!ioctl_index && ioctl_wr && reset) rom[reset ? ioctl_addr[17:0] : rom_addr[17:0]] <= ioctl_dout;
 always @(posedge clk_sys) rom_dout <= rom[rom_addr[17:0]];
 
@@ -637,6 +642,7 @@ end
 
 always_comb begin
 	case({m128, mem_addr[17:14]})
+		'b1_00_01: rom_data = scsi_diag_dout; // Master slot 1: *SCSITEST
 		'b0_01_00,
 		'b0_11_10,
 		'b0_11_11,	

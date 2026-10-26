@@ -1,9 +1,12 @@
 [CmdletBinding()]
 param(
     [string]$ModelSim = 'C:\intelFPGA_lite\17.0\modelsim_ase\win32aloem',
-    [string]$BeebAsm = (Join-Path $PSScriptRoot '..\..\build\beebasm\bin\beebasm.exe')
+    [string]$BeebAsm = ''
 )
 $ErrorActionPreference = 'Stop'
+$BeebAsm = if ([string]::IsNullOrWhiteSpace($BeebAsm)) {
+    Join-Path $PSScriptRoot '..\..\build\beebasm\bin\beebasm.exe'
+} else { $BeebAsm }
 $core = Split-Path $PSScriptRoot -Parent
 & python (Join-Path $PSScriptRoot 'build_scsi_diag.py') $BeebAsm
 if ($LASTEXITCODE -ne 0) { throw 'ROM assembly failed' }

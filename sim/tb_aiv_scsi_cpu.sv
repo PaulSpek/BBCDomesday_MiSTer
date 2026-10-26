@@ -36,7 +36,7 @@ module tb_aiv_scsi_cpu;
     aiv_scsi_adapter dut(
         .clk(clk), .reset(!reset_n), .cs(cs), .strobe(strobe),
         .rnw(cpu_rnw), .addr(cpu_a[1:0]), .din(cpu_do), .dout(dout),
-        .media_present(1'b1), .media_size(64'd2359552),
+        .media_present(1'b1), .media_size(64'd2359552), .video_present(1'b1),
         .media_read(media_read), .media_lba(media_lba),
         .media_ready(1'b1), .media_addr(media_addr),
         .media_data(media_data), .irq());

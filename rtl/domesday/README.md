@@ -26,6 +26,13 @@ The BBC core supplies an explicit 1 MHz transaction strobe, so the target
 handles each held 6502 bus access once rather than once per FPGA clock.
 A VFS volume must never be mounted as a floppy.
 
+The Pi1MHz LaserVision menu stored in the VFS volume discovers media with
+F-codes `?T<n>`, `?V<n>` and `?Y<n>`. A validated PVF/DDV in playback slot 3
+is currently published as one video-only entry in directory 1, titled
+`MiSTer LaserDisc`; directories 2-49 return `X`. This deliberately does not
+claim a full data disc: selecting a full `V1` entry would also require
+jukebox/image switching from the menu VFS volume to a second `scsi0.dat`.
+
 `core/sim/tb_aiv_scsi_adapter.sv` is a bus-level regression for selection,
 the per-byte REQ/ACK handshake and the ten-byte `READ CAPACITY(10)` CDB.
 

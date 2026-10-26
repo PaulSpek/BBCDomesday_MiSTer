@@ -12,6 +12,7 @@ module tb_aiv_scsi_adapter;
 	reg [7:0] din = 8'h00;
 	wire [7:0] dout;
 	reg media_present = 1'b1;
+	reg video_present = 1'b1;
 	reg [63:0] media_size = 64'd1048576; // 4096 logical 256-byte blocks
 	wire media_read;
 	wire [31:0] media_lba;
@@ -28,6 +29,7 @@ module tb_aiv_scsi_adapter;
 		.clk(clk), .reset(reset), .cs(cs), .strobe(strobe), .rnw(rnw),
 		.addr(addr), .din(din), .dout(dout),
 		.media_present(media_present), .media_size(media_size),
+		.video_present(video_present),
 		.media_read(media_read), .media_lba(media_lba), .media_ready(media_ready),
 		.media_addr(media_addr), .media_data(media_data), .irq(irq)
 	);
@@ -76,6 +78,97 @@ module tb_aiv_scsi_adapter;
 			@(posedge clk);
 			#1 strobe = 1'b0;
 			wait_req(1'b0);
+		end
+	endtask
+
+	task automatic write_fcode(
+		input [7:0] b0, input [7:0] b1, input [7:0] b2,
+		input [7:0] b3, input [7:0] b4
+	);
+		begin
+			fred_write(2'd2, 8'h10);
+			write_command_byte(8'hca);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			for (n = 0; n < 256; n = n + 1) begin
+				wait_req(1'b1);
+				fred_write(2'd0, (n == 0) ? b0 : (n == 1) ? b1 :
+					(n == 2) ? b2 : (n == 3) ? b3 : (n == 4) ? b4 : 8'h00);
+				wait_req(1'b0);
+			end
+			read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "menu WRITE F-Code status");
+			read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "menu WRITE F-Code message");
+		end
+	endtask
+
+	// kind 0=T title, 1=V0 video-only, 2=Y description, 3=X absent.
+	task automatic read_menu_reply(input integer kind);
+		begin
+			fred_write(2'd2, 8'h10);
+			write_command_byte(8'hc8);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			for (n = 0; n < 256; n = n + 1) begin
+				read_target_byte(byte_read);
+				case (kind)
+					0: begin
+						if (n == 0 && byte_read != "T") $fatal(1, "?T1 tag");
+						if (n == 1 && byte_read != "M") $fatal(1, "?T1 title");
+						if (n == 17 && byte_read != 8'h0d) $fatal(1, "?T1 terminator");
+						if (n > 17 && byte_read != 8'h00) $fatal(1, "?T1 padding");
+					end
+					1: case (n)
+						0: if (byte_read != "V") $fatal(1, "?V1 tag");
+						1: if (byte_read != "0") $fatal(1, "?V1 video-only flag");
+						2: if (byte_read != 8'h0d) $fatal(1, "?V1 terminator");
+						default: if (byte_read != 8'h00) $fatal(1, "?V1 padding");
+					endcase
+					2: begin
+						if (n == 0 && byte_read != "Y") $fatal(1, "?Y1 tag");
+						if (n == 1 && byte_read != "M") $fatal(1, "?Y1 description");
+						if (n == 22 && byte_read != 8'h0d) $fatal(1, "?Y1 terminator");
+						if (n > 22 && byte_read != 8'h00) $fatal(1, "?Y1 padding");
+					end
+					3: case (n)
+						0: if (byte_read != "X") $fatal(1, "absent directory tag");
+						1: if (byte_read != 8'h0d) $fatal(1, "absent directory terminator");
+						default: if (byte_read != 8'h00) $fatal(1, "absent directory padding");
+					endcase
+				endcase
+			end
+			read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "menu READ F-Code status");
+			read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "menu READ F-Code message");
+		end
+	endtask
+
+	task automatic read_player_status(input [7:0] expected_loaded);
+		begin
+			fred_write(2'd2, 8'h10);
+			write_command_byte(8'hc8);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			write_command_byte(8'h00);
+			for (n = 0; n < 256; n = n + 1) begin
+				read_target_byte(byte_read);
+				case (n)
+					0: if (byte_read != "P") $fatal(1, "?P tag");
+					1: if (byte_read != expected_loaded) $fatal(1, "?P loaded flag");
+					2, 3: if (byte_read != 8'h41) $fatal(1, "?P CAV/frame-lock flag");
+					4, 5: if (byte_read != 8'h40) $fatal(1, "?P player flag");
+					6: if (byte_read != 8'h0d) $fatal(1, "?P terminator");
+					default: if (byte_read != 8'h00) $fatal(1, "?P padding");
+				endcase
+			end
+			read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "?P READ status");
+			read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "?P READ message");
 		end
 	endtask
 
@@ -178,6 +271,19 @@ module tb_aiv_scsi_adapter;
 		end
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ F-Code status");
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "READ F-Code message");
+
+		// The Pi1MHz LaserVision menu scans directories 1-49 with ?T/?V/?Y.
+		// A validated playback mount is published as one video-only disc in
+		// directory 1; all other or malformed directory numbers return X.
+		write_fcode("?", "T", "1", 8'h0d, 8'h00); read_menu_reply(0);
+		write_fcode("?", "V", "1", 8'h0d, 8'h00); read_menu_reply(1);
+		write_fcode("?", "Y", "1", 8'h0d, 8'h00); read_menu_reply(2);
+		write_fcode("?", "T", "2", 8'h0d, 8'h00); read_menu_reply(3);
+		write_fcode("?", "T", "1", "0", 8'h0d); read_menu_reply(3);
+		video_present = 1'b0;
+		write_fcode("?", "T", "1", 8'h0d, 8'h00); read_menu_reply(3);
+		write_fcode("?", "P", 8'h0d, 8'h00, 8'h00); read_player_status(8'h40);
+		video_present = 1'b1;
 
 		// Ctrl+Break may arrive in the middle of an unbounded VFS handshake.
 		// It must return the external adapter to BUS FREE so the next SELECT

@@ -15,6 +15,10 @@ module aiv_scsi_adapter
 	output reg  [7:0] dout,
 	input             media_present,
 	input      [63:0] media_size,
+	// A validated PVF/DDV in the separate playback slot.  The LVFS menu is
+	// itself read from media_present; video_present tells its F-code scan that
+	// one playable video-only disc is available as directory 1.
+	input             video_present,
 	output            media_read,
 	output      [31:0] media_lba,
 	input             media_ready,
@@ -57,6 +61,7 @@ reg [7:0] host_id = 8'h00;
 reg [7:0] fcode_tx0 = 8'h00;
 reg [7:0] fcode_tx1 = 8'h00;
 reg [7:0] fcode_tx2 = 8'h00;
+reg [7:0] fcode_tx3 = 8'h00;
 reg [2:0] fcode_reply = 3'd0;
 reg [1:0] debug_read = 2'd0;
 reg req_asserted = 1'b0;
@@ -105,7 +110,7 @@ function automatic [7:0] fcode_byte(input [8:0] index);
 		case (fcode_reply)
 			3'd1: case (index) // ?P: player status
 				0: fcode_byte = "P";
-				1: fcode_byte = 8'h60; // '@' + disc loaded
+				1: fcode_byte = video_present ? 8'h60 : 8'h40; // '@' + disc loaded
 				2: fcode_byte = 8'h41; // '@' + CAV / no chapters
 				3: fcode_byte = 8'h41; // '@' + frame lock / replay off
 				4: fcode_byte = 8'h40; // transmission delay, remote and RC off
@@ -122,6 +127,43 @@ function automatic [7:0] fcode_byte(input [8:0] index);
 			endcase
 			3'd3: begin // ,1: player loaded and standing by
 				fcode_byte = (index == 0) ? "S" : ((index == 1) ? 8'h0d : 8'h00);
+			end
+			3'd4: case (index) // ?T1: menu title for the mounted video
+				 0: fcode_byte = "T";
+				 1: fcode_byte = "M";  2: fcode_byte = "i";
+				 3: fcode_byte = "S";  4: fcode_byte = "T";
+				 5: fcode_byte = "e";  6: fcode_byte = "r";
+				 7: fcode_byte = " ";  8: fcode_byte = "L";
+				 9: fcode_byte = "a"; 10: fcode_byte = "s";
+				11: fcode_byte = "e"; 12: fcode_byte = "r";
+				13: fcode_byte = "D"; 14: fcode_byte = "i";
+				15: fcode_byte = "s"; 16: fcode_byte = "c";
+				17: fcode_byte = 8'h0d;
+				default: fcode_byte = 8'h00;
+			endcase
+			3'd5: case (index) // ?V1: one video-only disc, no data LV-ROM yet
+				0: fcode_byte = "V";
+				1: fcode_byte = "0";
+				2: fcode_byte = 8'h0d;
+				default: fcode_byte = 8'h00;
+			endcase
+			3'd6: case (index) // ?Y1: menu description
+				 0: fcode_byte = "Y";
+				 1: fcode_byte = "M";  2: fcode_byte = "o";
+				 3: fcode_byte = "u";  4: fcode_byte = "n";
+				 5: fcode_byte = "t";  6: fcode_byte = "e";
+				 7: fcode_byte = "d";  8: fcode_byte = " ";
+				 9: fcode_byte = "D"; 10: fcode_byte = "D";
+				11: fcode_byte = "V"; 12: fcode_byte = "/";
+				13: fcode_byte = "P"; 14: fcode_byte = "V";
+				15: fcode_byte = "F"; 16: fcode_byte = " ";
+				17: fcode_byte = "m"; 18: fcode_byte = "e";
+				19: fcode_byte = "d"; 20: fcode_byte = "i";
+				21: fcode_byte = "a"; 22: fcode_byte = 8'h0d;
+				default: fcode_byte = 8'h00;
+			endcase
+			3'd7: begin // absent/malformed ?T/?V/?Y directory
+				fcode_byte = (index == 0) ? "X" : ((index == 1) ? 8'h0d : 8'h00);
 			end
 			default: fcode_byte = (index == 0) ? 8'h0d : 8'h00;
 		endcase
@@ -209,6 +251,7 @@ always @(posedge clk) begin
 		fcode_tx0 <= 8'h00;
 		fcode_tx1 <= 8'h00;
 		fcode_tx2 <= 8'h00;
+		fcode_tx3 <= 8'h00;
 		fcode_reply <= 3'd0;
 		debug_read <= 2'd0;
 		req_asserted <= 1'b0;
@@ -357,6 +400,7 @@ always @(posedge clk) begin
 			if (data_count == 0) fcode_tx0 <= din;
 			if (data_count == 1) fcode_tx1 <= din;
 			if (data_count == 2) fcode_tx2 <= din;
+			if (data_count == 3) fcode_tx3 <= din;
 			if (data_count == 9'd255) begin
 				if (fcode_tx0 == "?" && fcode_tx1 == "P")
 					fcode_reply <= 3'd1;
@@ -364,6 +408,17 @@ always @(posedge clk) begin
 					fcode_reply <= 3'd2;
 				else if (fcode_tx0 == "," && fcode_tx1 == "1")
 					fcode_reply <= 3'd3;
+				// The Pi1MHz menu scans directories 1-49 with ?T/?V/?Y.
+				// This first MiSTer implementation exposes the independently
+				// mounted and validated playback file as directory 1 only.
+				else if (fcode_tx0 == "?" &&
+					(fcode_tx1 == "T" || fcode_tx1 == "V" || fcode_tx1 == "Y")) begin
+					if (video_present && fcode_tx2 == "1" && fcode_tx3 == 8'h0d)
+						fcode_reply <= (fcode_tx1 == "T") ? 3'd4 :
+							(fcode_tx1 == "V") ? 3'd5 : 3'd6;
+					else
+						fcode_reply <= 3'd7;
+				end
 				else
 					fcode_reply <= 3'd0;
 				scsi_status <= 8'h00;

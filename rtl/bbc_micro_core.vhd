@@ -2450,9 +2450,10 @@ begin
     -- Debugging output
     cpu_addr <= cpu_a(15 downto 0);
     aiv_scsi_cs <= aiv_scsi_enable;
-	-- The address decode remains asserted throughout a stretched 1 MHz CPU
-	-- cycle.  External AIV logic needs the single access pulse, not that level.
-    aiv_scsi_strobe <= aiv_scsi_enable and mhz1_clken;
+	-- A stretched CPU access may span more than one 1 MHz peripheral enable.
+	-- Acknowledge the byte once, on completion of the actual CPU bus cycle.
+	-- The 96 MHz wrapper additionally qualifies this with the 48 MHz enable.
+    aiv_scsi_strobe <= aiv_scsi_enable and cpu_clken;
     aiv_scsi_rnw <= cpu_r_nw;
     aiv_scsi_addr <= cpu_a(1 downto 0);
     aiv_scsi_din <= cpu_do;

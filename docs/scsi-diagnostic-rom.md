@@ -97,6 +97,11 @@ timing and the cause of the FPGA failure still require hardware measurements.
 
 Increment the displayed and header version for every diagnostic revision.
 
+For the actual Master CPU and 48/96 MHz bus regression, see
+[SCSI CPU timing](scsi-cpu-timing.md). That test reproduces the v1.5 hardware
+failure with the legacy bus strobe and completes the same ROM with the fixed
+CPU-completion strobe. The diagnostic ROM itself remains v1.5.
+
 BeebEm check (2026-10-26): the initial ROM printed each diagnostic line over
 the preceding one because it sent CR through OSWRCH. Text now uses OSASCI,
 which advances to the next line. The updated standalone binary is at

@@ -43,3 +43,5 @@ sim/work/
 sim/transcript
 .remote-build/
 scsi_diag.rom
+sim/scsi_diag.hex
+sim/cpu-*.log

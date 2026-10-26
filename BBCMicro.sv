@@ -536,7 +536,9 @@ aiv_scsi_adapter aiv_scsi
 	.clk       (clk_sys),
 	.reset     (reset | aiv_scsi_reset),
 	.cs        (aiv_scsi_cs),
-	.strobe    (aiv_scsi_strobe),
+	// cpu_clken is held for a 48 MHz cycle; accept at its CPU clock edge
+	// exactly once in the 96 MHz adapter clock domain.
+	.strobe    (aiv_scsi_strobe & ce_48),
 	.rnw       (aiv_scsi_rnw),
 	.addr      (aiv_scsi_addr),
 	.din       (aiv_scsi_din),

@@ -32,6 +32,10 @@ def main():
         lines.append(f"{address // 2:04X}: {values};")
     lines.append("END;")
     (root / "roms/scsi_diag.mif").write_text("\n".join(lines) + "\n", encoding="ascii")
+    # Byte image consumed by the mixed-language Master CPU bus regression.
+    (root / "sim/scsi_diag.hex").write_text(
+        "\n".join(f"{byte:02X}" for byte in binary) + "\n", encoding="ascii"
+    )
     print("Built 16 KiB diagnostic ROM in Master slot 1")
 
 

@@ -1,4 +1,4 @@
-// Master sideways ROM slot with a 16 KiB MiSTer OSD file-loader input.
+// Model B / Master sideways ROM slot with a 16 KiB OSD file-loader input.
 // A short, oversized or out-of-order transfer makes the slot invisible to MOS.
 module sideways_rom_slot #(
     parameter [7:0] FILE_INDEX = 8'd5,
@@ -16,25 +16,27 @@ module sideways_rom_slot #(
     input [7:0] write_data,
     output loading
 );
-    // The base BBC core already consumes most M10Ks. Use distributed MLAB
-    // memory for the OSD overlays instead of another 32 M10Ks. The BBC is
-    // held in reset throughout a download, so read-during-write data is unused.
-    // Pack byte pairs into a single write. A 16K x 8 array needs 512 separate
-    // MLAB banks per slot; 8K x 16 needs 256. Avoid byte write enables here:
-    // they can split the memory back into two narrow, inefficient arrays.
-    (* ramstyle = "MLAB, no_rw_check", ram_init_file = INIT_FILE *) reg [15:0] memory [0:8191];
-    reg [7:0] even_byte;
-    reg [15:0] read_word;
-    reg read_lane;
+    // Four 8K x 16 slots would need 1024 MLABs, above the device limit.
+    // Five bytes per 40-bit word fully use two 20-bit MLAB lanes: each slot
+    // needs 206 MLABs, four need 824. No byte enables (they split the RAM).
+    // The final word has four bytes plus a zero padding byte.
+    (* ramstyle = "MLAB, no_rw_check", ram_init_file = INIT_FILE *) reg [39:0] memory [0:3276];
+    reg [31:0] upload_prefix;
+    reg [39:0] read_word;
+    reg [2:0] read_lane;
+    wire [11:0] read_group = read_addr / 14'd5;
+    wire [2:0] read_offset = read_addr % 14'd5;
+    wire [11:0] write_group = write_addr[13:0] / 14'd5;
+    wire [2:0] write_offset = write_addr[13:0] % 14'd5;
     reg was_loading = 1'b0;
     reg [14:0] expected_addr = 15'd0;
     reg bad_transfer = 1'b0;
     assign loading = download && file_index == FILE_INDEX;
-    assign read_data = read_lane ? read_word[15:8] : read_word[7:0];
+    assign read_data = read_word[read_lane * 8 +: 8];
 
     always @(posedge clk) begin
-        read_word <= memory[read_addr[13:1]];
-        read_lane <= read_addr[0];
+        read_word <= memory[read_group];
+        read_lane <= read_offset;
         was_loading <= loading;
         if (loading && !was_loading) begin
             valid <= 1'b0;
@@ -46,10 +48,12 @@ module sideways_rom_slot #(
                 write_addr != (was_loading ? {10'd0, expected_addr} : 25'd0))
                 bad_transfer <= 1'b1;
             else begin
-                if (write_addr[0])
-                    memory[write_addr[13:1]] <= {write_data, even_byte};
+                if (write_addr == 25'd16383)
+                    memory[write_group] <= {8'd0, write_data, upload_prefix[23:0]};
+                else if (write_offset == 3'd4)
+                    memory[write_group] <= {write_data, upload_prefix};
                 else
-                    even_byte <= write_data;
+                    upload_prefix[write_offset * 8 +: 8] <= write_data;
                 expected_addr <= (was_loading ? expected_addr : 15'd0) + 1'b1;
             end
         end

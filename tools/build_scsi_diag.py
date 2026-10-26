@@ -20,16 +20,13 @@ def main():
     if len(binary) != 16384 or binary[:3] != bytes((0x4C, binary[1], binary[2])):
         raise SystemExit("Invalid 16 KiB service ROM")
     lines = [
-        "DEPTH = 8192;", "WIDTH = 16;", "ADDRESS_RADIX = HEX;",
+        "DEPTH = 3277;", "WIDTH = 40;", "ADDRESS_RADIX = HEX;",
         "DATA_RADIX = HEX;", "CONTENT BEGIN",
     ]
-    for address in range(0, len(binary), 32):
-        # Pair little-endian BBC bytes to match sideways_rom_slot's wide RAM.
-        values = " ".join(
-            f"{binary[offset + 1]:02X}{binary[offset]:02X}"
-            for offset in range(address, address + 32, 2)
-        )
-        lines.append(f"{address // 2:04X}: {values};")
+    for address in range(0, len(binary), 5):
+        # Five little-endian BBC bytes per 40-bit MLAB word, final byte zero.
+        value = int.from_bytes(binary[address:address + 5].ljust(5, b"\0"), "little")
+        lines.append(f"{address // 5:04X}: {value:010X};")
     lines.append("END;")
     (root / "roms/scsi_diag.mif").write_text("\n".join(lines) + "\n", encoding="ascii")
     # Byte image consumed by the mixed-language Master CPU bus regression.

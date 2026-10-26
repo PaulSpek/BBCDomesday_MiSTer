@@ -8,6 +8,10 @@ below while adding the first MiSTer framework modernization needed by the
 Picmatic-derived video path. See [DOMESDAY_PORTING.md](DOMESDAY_PORTING.md) and
 the [project feasibility notes](docs/feasibility.md).
 
+The **Cartridge ROMs** OSD submenu loads 16 KiB ROMs into slots 0–3 in either
+Model B or Master mode. See [cartridge ROM loading](docs/cartridge-roms.md)
+for defaults, persistence, slot 3 replacement and test details.
+
 The current modernization is intentionally inactive at runtime: the
 `MISTER_FB` interface is compiled and driven to safe RGB565 defaults, while
 the original BBC video path remains selected. This makes the branch suitable

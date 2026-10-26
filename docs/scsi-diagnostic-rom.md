@@ -15,27 +15,32 @@ python core/tools/build_scsi_diag.py build/beebasm/bin/beebasm.exe
 The generated `roms/scsi_diag.mif` is checked in so a remote Quartus build
 does not require BeebAsm. The local `scsi_diag.rom` binary is ignored.
 
-The core OSD can replace Master sideways slots 0 and 1 without rebuilding the
-RBF. Slot 0 starts empty; slot 1 starts with this diagnostic ROM. In Master
-mode choose **Load Master ROM slot 0** or **Load Master ROM slot 1** and select
-an exactly 16,384-byte `.rom` file. The BBC is reset during the transfer so
-the MOS rescans its ROMs. A short, oversized or non-sequential transfer makes
-that slot invisible until a full ROM is loaded or the core is reloaded. The
-file lives in FPGA RAM and must be selected again after reloading the core;
-the built-in diagnostic returns in slot 1 on a fresh core load.
+The **Cartridge ROMs** OSD submenu loads slots **0–3** in both Master and
+Model B modes without rebuilding the RBF. Select **Load ROM slot 0**, **1**,
+**2** or **3**, then an exactly 16,384-byte `.rom` file. Slots 0 and 2 start
+empty, slot 1 contains this diagnostic, and slot 3 retains its built-in
+filing-system ROM (Master MMFS or Model B DFS) until replaced. A loaded slot 3
+is visible regardless of the built-in Filesystem enable setting.
 
-Both slots explicitly use MLAB distributed memory (`ramstyle = "MLAB,
-no_rw_check"`). The previous implementation needed 32 extra M10K blocks and
-failed fitting with error 170048 on the 553-M10K Cyclone V. MLABs use spare
-logic resources instead, preserving the synchronous one-clock read interface,
-MIF initialization, and the OSD loader without requiring external SDRAM.
-Read-during-write data is unspecified: the BBC remains in reset throughout
-the transfer and the slot is exposed only after all 16,384 bytes validate.
-The first 16K x 8 MLAB version also exceeded the device's 985 memory LAB
-locations. Each slot now packs two incoming bytes into one 16-bit write to an
-8K x 16 memory. That reduces the required MLAB banks from 512 to 256 per slot.
-MIFs use 8192 16-bit little-endian words; `.rom` uploads remain 16384 bytes.
-Check both MLAB and M10K usage in the fit report after changing these memories.
+The BBC resets during an upload so MOS rescans the slots. A short, oversized
+or non-sequential upload invalidates only that slot; invalid slot 3 falls back
+to its built-in ROM. Images are shared between models, survive CPU reset and
+model changes, and must be loaded again after reloading the RBF. Master
+private-RAM mapping still takes precedence when selected by MOS. These are
+ROM images, not CPU-writeable sideways RAM.
+
+All four slots use MLAB distributed memory (`ramstyle = "MLAB, no_rw_check"`).
+The previous two-slot implementation used 256 MLABs per slot; four of those
+would exceed the device limit. Five bytes now form one 40-bit word, using
+both 20-bit MLAB lanes efficiently: 3277 words per slot, with a zero-padded
+final word. Estimated allocation is 206 MLABs per slot, 824 total. MIFs use
+3277 little-endian 40-bit words; OSD uploads remain ordinary 16 KiB ROM files.
+The read latency remains one system clock. Verify full-fit resource usage
+and timing before deployment. Read-during-write data is not used because the
+BBC stays in reset throughout a download.
+
+The Domesday status-LED OSD option and mounted-media LED indication have been
+removed; normal download and disk-activity indication remains.
 
 To test the interface, choose Master mode and mount a `scsi0.dat` on the
 Domesday LV-ROM OSD slot. At a `*` prompt type `*SCSITEST`.

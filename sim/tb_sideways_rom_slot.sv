@@ -35,7 +35,7 @@ module tb_sideways_rom_slot;
         download = 0;
         @(negedge clk);
         if (valid !== 1'b1) $fatal(1, "Full 16 KiB load rejected");
-        // Check both lanes of every packed word, including bank boundaries
+        // Check all five lanes of every packed word, including bank boundaries
         // and the very last byte, at the original one-clock read latency.
         for (i = 0; i < 16384; i = i + 1) begin
             read_addr = i[13:0];
@@ -51,7 +51,7 @@ module tb_sideways_rom_slot;
         download = 0;
         @(negedge clk);
         if (valid !== 1'b0) $fatal(1, "Truncated ROM accepted");
-        // A new complete upload must not reuse the half-word left behind
+        // A new complete upload must not reuse the partial word left behind
         // by the truncated upload. Also exercise consecutive ioctl writes.
         download = 1;
         for (i = 0; i < 16384; i = i + 1) begin

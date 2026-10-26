@@ -202,8 +202,7 @@ assign FB_PAL_WR      = 1'b0;
 `endif
 `endif
  
-assign LED_USER  = ioctl_download | (vsd_sel & sd_act) |
-				   (status[DOMESDAY_DIAG_OPT] & (domesday_pvf_valid | domesday_ddv_valid | domesday_vfs_valid));
+assign LED_USER  = ioctl_download | (vsd_sel & sd_act);
 assign LED_DISK  = {1'b1,~vsd_sel & sd_act};
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
@@ -266,7 +265,6 @@ parameter FILE_SYS_OPT_H = 27;
 parameter M7_VIDEO_OPT = 28;
 parameter M128_SHADOW_OPT = 29;
 parameter M128_FS_OPT = 30;
-parameter DOMESDAY_DIAG_OPT = 31;
 
 parameter CONF_STR = {
 	"BBCMicro;;",
@@ -277,8 +275,11 @@ parameter CONF_STR = {
 	"h1S2,SSDDSD;",
 	"S3,DDV,Mount Domesday LaserDisc cache;",
 	"S4,DAT,Mount Domesday LV-ROM volume;",
-	"h2F5,ROM,Load Master ROM slot 0;",
-	"h2F6,ROM,Load Master ROM slot 1;",
+	"P1,Cartridge ROMs;",
+	"P1F5,ROM,Load ROM slot 0;",
+	"P1F6,ROM,Load ROM slot 1;",
+	"P1F7,ROM,Load ROM slot 2;",
+	"P1F8,ROM,Load ROM slot 3;",
 	"OC,Autostart,No,Yes;",
 	"-;",
 	"O4,Model,B(MOS6502),Master(R65SC12);",
@@ -294,7 +295,6 @@ parameter CONF_STR = {
 	"-;",
 	"OA,Mouse as Joystick,Yes,No;",
 	"OB,Swap Joysticks,No,Yes;",
-	"OV,Domesday status LED,Off,On;",
 	"-;",
 	"R0,Reset;",
 	"JA,Fire;",
@@ -555,7 +555,7 @@ aiv_scsi_adapter aiv_scsi
 
 /////////////////  RESET  /////////////////////////
 
-wire reset = RESET | status[0] | buttons[1] | rom_slot0_loading | rom_slot1_loading |
+wire reset = RESET | status[0] | buttons[1] | rom_loading |
              (status[AUTO_START_OPT] & (|img_mounted[4:0]));
 
 ////////////////  MEMORY  /////////////////////////
@@ -569,25 +569,17 @@ wire  [7:0] mem_din;
 
 reg  [17:0] rom_addr;
 reg  [7:0] rom_dout;
-reg  [7:0] rom_data;
+wire [7:0] rom_data;
 
 (* ram_init_file = "roms/rom.mif" *) reg [7:0] rom[16 * 16384];
-wire [7:0] rom_slot0_data, rom_slot1_data;
-wire rom_slot0_valid, rom_slot1_valid;
-wire rom_slot0_loading, rom_slot1_loading;
-sideways_rom_slot #(.FILE_INDEX(8'd5), .INIT_FILE("roms/empty_sideways.mif"),
-    .DEFAULT_VALID(1'b0)) rom_slot0 (
-    .clk(clk_sys), .read_addr(mem_addr[13:0]), .read_data(rom_slot0_data),
-    .valid(rom_slot0_valid), .download(ioctl_download), .file_index(ioctl_index),
+wire [7:0] cartridge_data;
+wire cartridge_valid, rom_loading;
+sideways_rom_bank cartridge_roms (
+    .clk(clk_sys), .read_slot(mem_addr[15:14]), .read_addr(mem_addr[13:0]),
+    .read_data(cartridge_data), .valid(cartridge_valid),
+    .download(ioctl_download), .file_index(ioctl_index),
     .write_enable(ioctl_wr), .write_addr(ioctl_addr), .write_data(ioctl_dout),
-    .loading(rom_slot0_loading)
-);
-sideways_rom_slot #(.FILE_INDEX(8'd6), .INIT_FILE("roms/scsi_diag.mif"),
-    .DEFAULT_VALID(1'b1)) rom_slot1 (
-    .clk(clk_sys), .read_addr(mem_addr[13:0]), .read_data(rom_slot1_data),
-    .valid(rom_slot1_valid), .download(ioctl_download), .file_index(ioctl_index),
-    .write_enable(ioctl_wr), .write_addr(ioctl_addr), .write_data(ioctl_dout),
-    .loading(rom_slot1_loading)
+    .loading(rom_loading)
 );
 always @(posedge clk_sys) if(!ioctl_index && ioctl_wr && reset) rom[reset ? ioctl_addr[17:0] : rom_addr[17:0]] <= ioctl_dout;
 always @(posedge clk_sys) rom_dout <= rom[rom_addr[17:0]];
@@ -657,28 +649,11 @@ always_comb begin
 	endcase
 end
 
-always_comb begin
-	case({m128, mem_addr[17:14]})
-		'b1_00_00: rom_data = rom_slot0_valid ? rom_slot0_data : 8'h00;
-		'b1_00_01: rom_data = rom_slot1_valid ? rom_slot1_data : 8'h00;
-		'b0_01_00,
-		'b0_11_10,
-		'b0_11_11,	
-		'b1_01_00,
-		'b1_10_00,
-		'b1_10_10,
-		'b1_10_11,
-		'b1_11_00,
-		'b1_11_01,
-		'b1_11_10,
-		'b1_11_11: rom_data = rom_dout;
-		'b0_00_11,
-		'b1_10_01: rom_data = (dfs) ? rom_dout : 0; // Enable/disable DFS
-		'b0_10_00,
-		'b1_00_11: rom_data = (mmfs) ? rom_dout : 0; // Enable/disable MMFS
-		  default: rom_data = 0;
-	endcase
-end
+sideways_rom_mux cartridge_mux (
+    .master(m128), .slot(mem_addr[17:14]), .dfs(dfs), .mmfs(mmfs),
+    .builtin_data(rom_dout), .cartridge_data(cartridge_data),
+    .cartridge_valid(cartridge_valid), .data(rom_data)
+);
 
 reg [7:0] ram_dout;
 

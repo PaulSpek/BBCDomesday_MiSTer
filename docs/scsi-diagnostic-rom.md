@@ -24,6 +24,15 @@ that slot invisible until a full ROM is loaded or the core is reloaded. The
 file lives in FPGA RAM and must be selected again after reloading the core;
 the built-in diagnostic returns in slot 1 on a fresh core load.
 
+Both slots explicitly use MLAB distributed memory (`ramstyle = "MLAB,
+no_rw_check"`). The previous implementation needed 32 extra M10K blocks and
+failed fitting with error 170048 on the 553-M10K Cyclone V. MLABs use spare
+logic resources instead, preserving the synchronous one-clock read interface,
+MIF initialization, and the OSD loader without requiring external SDRAM.
+Read-during-write data is unspecified: the BBC remains in reset throughout
+the transfer and the slot is exposed only after all 16,384 bytes validate.
+Check both MLAB and M10K usage in the fit report after changing these memories.
+
 To test the interface, choose Master mode and mount a `scsi0.dat` on the
 Domesday LV-ROM OSD slot. At a `*` prompt type `*SCSITEST`.
 Record all output, including FC41 hex on failure. The tests are:

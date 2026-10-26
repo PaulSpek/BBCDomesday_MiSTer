@@ -16,7 +16,10 @@ module sideways_rom_slot #(
     input [7:0] write_data,
     output loading
 );
-    (* ram_init_file = INIT_FILE *) reg [7:0] memory [0:16383];
+    // The base BBC core already consumes most M10Ks. Use distributed MLAB
+    // memory for the OSD overlays instead of another 32 M10Ks. The BBC is
+    // held in reset throughout a download, so read-during-write data is unused.
+    (* ramstyle = "MLAB, no_rw_check", ram_init_file = INIT_FILE *) reg [7:0] memory [0:16383];
     reg was_loading = 1'b0;
     reg [14:0] expected_addr = 15'd0;
     reg bad_transfer = 1'b0;

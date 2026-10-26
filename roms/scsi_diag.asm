@@ -240,7 +240,10 @@ RTS
 LDA #&E2:JSR waitphase
 BCS endfail
 LDA &FC40:STA sample
-LDA #&63:JSR waitphase
+\ Message-in has C/D, I/O, REQ, BSY and MSG all asserted: FC41=&E3.
+\ &63 incorrectly omitted C/D, making every normally completed command fail
+\ only after its valid status byte had been read.
+LDA #&E3:JSR waitphase
 BCS endfail
 LDA &FC40:STA index
 LDA #0:JSR waitphase

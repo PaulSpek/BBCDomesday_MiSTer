@@ -59,6 +59,13 @@ The test source intentionally avoids use of the current filing system, so it
 can run even when `*VFS` hangs. If the command is not recognized, inspect the
 Master ROM list and whether the slot 1 image was actually loaded by the RBF.
 
+Hardware result, 2026-10-26: the initial MiSTer run reported BUS FREE `PASS`
+and returned a valid READ CAPACITY response (`00 00 24 00 00 01 00 00`), but
+marked completed commands `FAIL FC41=E3`. `E3` is the correct message-in
+phase: C/D, I/O, REQ, BSY and MSG are all high. The diagnostic originally
+expected `63`, incorrectly omitting C/D. The corrected ROM expects `E3`; this
+does not change the FPGA SCSI adapter.
+
 BeebEm check (2026-10-26): the initial ROM printed each diagnostic line over
 the preceding one because it sent CR through OSWRCH. Text now uses OSASCI,
 which advances to the next line. The updated standalone binary is at

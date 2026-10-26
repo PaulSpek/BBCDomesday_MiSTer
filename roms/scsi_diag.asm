@@ -1,6 +1,7 @@
 \ BBC Master AIV SCSI diagnostic service ROM. BeebAsm v1.11.
 \ Slot 1, invoked with *SCSITEST. No filing-system hooks or disk writes.
 oswrch = &FFEE
+osasci = &FFE3
 ptr = &70
 timeoutlo = &72
 timeouthi = &73
@@ -263,7 +264,7 @@ LDA #failtext MOD 256:STA ptr
 LDA #failtext DIV 256:STA ptr+1
 JSR print
 LDA laststatus:JSR hexbyte
-LDA #13:JSR oswrch
+LDA #13:JSR osasci
 LDA #0:STA &FC43
 RTS
 .print
@@ -271,7 +272,7 @@ LDY #0
 .printloop
 LDA (ptr),Y
 BEQ printdone
-JSR oswrch
+JSR osasci
 INY
 BNE printloop
 .printdone RTS

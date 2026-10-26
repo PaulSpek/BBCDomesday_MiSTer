@@ -1,5 +1,6 @@
 set_global_assignment -name SDC_FILE BBCMicro.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE BBCMicro.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/domesday/sideways_rom_slot.sv
 set_global_assignment -name VHDL_FILE rtl/CoPro6502.vhd
 set_global_assignment -name VHDL_FILE rtl/CoProSPI.vhd
 set_global_assignment -name VHDL_FILE rtl/mister_keyboard.vhd

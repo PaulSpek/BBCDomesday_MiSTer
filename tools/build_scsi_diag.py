@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the BBC SCSI diagnostic ROM with BeebAsm and emit Quartus HEX."""
+"""Assemble the BBC SCSI diagnostic ROM with BeebAsm and emit Quartus MIF."""
 
 import argparse
 import subprocess
@@ -19,9 +19,15 @@ def main():
     binary = (root / "scsi_diag.rom").read_bytes()
     if len(binary) != 16384 or binary[:3] != bytes((0x4C, binary[1], binary[2])):
         raise SystemExit("Invalid 16 KiB service ROM")
-    (root / "roms/scsi_diag.hex").write_text(
-        "".join(f"{byte:02X}\n" for byte in binary), encoding="ascii"
-    )
+    lines = [
+        "DEPTH = 16384;", "WIDTH = 8;", "ADDRESS_RADIX = HEX;",
+        "DATA_RADIX = HEX;", "CONTENT BEGIN",
+    ]
+    for address in range(0, len(binary), 32):
+        values = " ".join(f"{byte:02X}" for byte in binary[address:address + 32])
+        lines.append(f"{address:04X}: {values};")
+    lines.append("END;")
+    (root / "roms/scsi_diag.mif").write_text("\n".join(lines) + "\n", encoding="ascii")
     print("Built 16 KiB diagnostic ROM in Master slot 1")
 
 

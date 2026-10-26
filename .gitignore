@@ -42,3 +42,4 @@ REMOTE_ACCESS.md
 sim/work/
 sim/transcript
 .remote-build/
+scsi_diag.rom

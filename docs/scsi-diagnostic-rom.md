@@ -12,11 +12,20 @@ Build from the project parent directory with BeebAsm v1.11:
 python core/tools/build_scsi_diag.py build/beebasm/bin/beebasm.exe
 ```
 
-The generated `roms/scsi_diag.hex` is checked in so a remote Quartus build
+The generated `roms/scsi_diag.mif` is checked in so a remote Quartus build
 does not require BeebAsm. The local `scsi_diag.rom` binary is ignored.
 
-After loading the diagnostic RBF, choose Master mode and mount a `scsi0.dat`
-on the Domesday LV-ROM OSD slot. At a `*` prompt type `*SCSITEST`.
+The core OSD can replace Master sideways slots 0 and 1 without rebuilding the
+RBF. Slot 0 starts empty; slot 1 starts with this diagnostic ROM. In Master
+mode choose **Load Master ROM slot 0** or **Load Master ROM slot 1** and select
+an exactly 16,384-byte `.rom` file. The BBC is reset during the transfer so
+the MOS rescans its ROMs. A short, oversized or non-sequential transfer makes
+that slot invisible until a full ROM is loaded or the core is reloaded. The
+file lives in FPGA RAM and must be selected again after reloading the core;
+the built-in diagnostic returns in slot 1 on a fresh core load.
+
+To test the interface, choose Master mode and mount a `scsi0.dat` on the
+Domesday LV-ROM OSD slot. At a `*` prompt type `*SCSITEST`.
 Record all output, including FC41 hex on failure. The tests are:
 
 1. BUS FREE flags before selection.
@@ -36,3 +45,8 @@ does not claim permanent RAM or intercept IRQs. The test does not write media.
 The test source intentionally avoids use of the current filing system, so it
 can run even when `*VFS` hangs. If the command is not recognized, inspect the
 Master ROM list and whether the slot 1 image was actually loaded by the RBF.
+
+BeebEm check (2026-10-26): the initial ROM printed each diagnostic line over
+the preceding one because it sent CR through OSWRCH. Text now uses OSASCI,
+which advances to the next line. The updated standalone binary is at
+`../../build/SCSITEST.rom` relative to this document.

@@ -277,6 +277,8 @@ parameter CONF_STR = {
 	"h1S2,SSDDSD;",
 	"S3,DDV,Mount Domesday LaserDisc cache;",
 	"S4,DAT,Mount Domesday LV-ROM volume;",
+	"h2F5,ROM,Load Master ROM slot 0;",
+	"h2F6,ROM,Load Master ROM slot 1;",
 	"OC,Autostart,No,Yes;",
 	"-;",
 	"O4,Model,B(MOS6502),Master(R65SC12);",
@@ -551,7 +553,8 @@ aiv_scsi_adapter aiv_scsi
 
 /////////////////  RESET  /////////////////////////
 
-wire reset = RESET | status[0] | buttons[1] | (status[AUTO_START_OPT] & (|img_mounted[4:0]));
+wire reset = RESET | status[0] | buttons[1] | rom_slot0_loading | rom_slot1_loading |
+             (status[AUTO_START_OPT] & (|img_mounted[4:0]));
 
 ////////////////  MEMORY  /////////////////////////
 
@@ -567,11 +570,23 @@ reg  [7:0] rom_dout;
 reg  [7:0] rom_data;
 
 (* ram_init_file = "roms/rom.mif" *) reg [7:0] rom[16 * 16384];
-// Independent service ROM in Master sideways slot 1. It is generated from
-// roms/scsi_diag.asm; keeping it separate avoids repacking third-party ROMs.
-(* ram_init_file = "roms/scsi_diag.hex" *) reg [7:0] scsi_diag_rom[16384];
-reg [7:0] scsi_diag_dout;
-always @(posedge clk_sys) scsi_diag_dout <= scsi_diag_rom[mem_addr[13:0]];
+wire [7:0] rom_slot0_data, rom_slot1_data;
+wire rom_slot0_valid, rom_slot1_valid;
+wire rom_slot0_loading, rom_slot1_loading;
+sideways_rom_slot #(.FILE_INDEX(8'd5), .INIT_FILE("roms/empty_sideways.mif"),
+    .DEFAULT_VALID(1'b0)) rom_slot0 (
+    .clk(clk_sys), .read_addr(mem_addr[13:0]), .read_data(rom_slot0_data),
+    .valid(rom_slot0_valid), .download(ioctl_download), .file_index(ioctl_index),
+    .write_enable(ioctl_wr), .write_addr(ioctl_addr), .write_data(ioctl_dout),
+    .loading(rom_slot0_loading)
+);
+sideways_rom_slot #(.FILE_INDEX(8'd6), .INIT_FILE("roms/scsi_diag.mif"),
+    .DEFAULT_VALID(1'b1)) rom_slot1 (
+    .clk(clk_sys), .read_addr(mem_addr[13:0]), .read_data(rom_slot1_data),
+    .valid(rom_slot1_valid), .download(ioctl_download), .file_index(ioctl_index),
+    .write_enable(ioctl_wr), .write_addr(ioctl_addr), .write_data(ioctl_dout),
+    .loading(rom_slot1_loading)
+);
 always @(posedge clk_sys) if(!ioctl_index && ioctl_wr && reset) rom[reset ? ioctl_addr[17:0] : rom_addr[17:0]] <= ioctl_dout;
 always @(posedge clk_sys) rom_dout <= rom[rom_addr[17:0]];
 
@@ -642,7 +657,8 @@ end
 
 always_comb begin
 	case({m128, mem_addr[17:14]})
-		'b1_00_01: rom_data = scsi_diag_dout; // Master slot 1: *SCSITEST
+		'b1_00_00: rom_data = rom_slot0_valid ? rom_slot0_data : 8'h00;
+		'b1_00_01: rom_data = rom_slot1_valid ? rom_slot1_data : 8'h00;
 		'b0_01_00,
 		'b0_11_10,
 		'b0_11_11,	

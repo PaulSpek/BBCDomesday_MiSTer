@@ -69,7 +69,8 @@ if (-not (Test-Path -LiteralPath $quartusLiteral -PathType Leaf)) {
 `$currentPath = Join-Path `$stateDirectory 'current.json'
 `$quartusNames = 'quartus_sh','quartus_map','quartus_fit','quartus_asm','quartus_sta','quartus_cdb','quartus_syn','quartus_eda'
 `$activeQuartus = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
-    (`$quartusNames -contains `$_.ProcessName.ToLowerInvariant()) -and -not `$_.HasExited
+    (`$quartusNames -contains `$_.ProcessName.ToLowerInvariant()) -and -not `$_.HasExited -and
+    ((Get-Date) - `$_.StartTime).TotalHours -lt 2
 })
 if (`$activeQuartus) {
     `$description = (`$activeQuartus | ForEach-Object { "`$(`$_.ProcessName):`$(`$_.Id)" }) -join ', '

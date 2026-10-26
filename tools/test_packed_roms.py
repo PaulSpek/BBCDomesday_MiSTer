@@ -22,7 +22,7 @@ def packed_region(path: Path, region: int, words: int, size: int) -> bytes:
     result = bytearray()
     for address in range(region * words, (region + 1) * words):
         value = values.get(address, 0)
-        result.extend((value >> (lane * 8)) & 0xFF for lane in range(5))
+        result.extend((value >> (lane * 8)) & 0xFF for lane in range(4))
     return bytes(result[:size])
 
 
@@ -36,7 +36,7 @@ def main() -> None:
     diagnostic = parse_packed_mif(ROMS / "scsi_diag.mif", SLOT_BYTES)
     expected = (empty, diagnostic, empty, empty)
     for slot, content in enumerate(expected):
-        actual = packed_region(cartridges, slot, 3277, SLOT_BYTES)
+        actual = packed_region(cartridges, slot, 4096, SLOT_BYTES)
         assert actual == content, f"packed cartridge slot {slot} differs"
     print("PASS packed built-in and cartridge ROM images")
 

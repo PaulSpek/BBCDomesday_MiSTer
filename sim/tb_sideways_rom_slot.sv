@@ -35,9 +35,13 @@ module tb_sideways_rom_slot;
         download = 0;
         @(negedge clk);
         if (valid !== 1'b1) $fatal(1, "Full 16 KiB load rejected");
-        read_addr = 14'h0123;
-        repeat (2) @(negedge clk);
-        if (read_data !== 8'h23) $fatal(1, "Loaded byte mismatch: %h", read_data);
+        // Check both lanes of every packed word, including bank boundaries
+        // and the very last byte, at the original one-clock read latency.
+        for (i = 0; i < 16384; i = i + 1) begin
+            read_addr = i[13:0];
+            @(negedge clk);
+            if (read_data !== i[7:0]) $fatal(1, "Byte %h mismatch: %h", i, read_data);
+        end
         file_index = 8'd5;
         send_byte(0, 8'h99);
         if (valid !== 1'b1) $fatal(1, "Other index modified slot");
@@ -47,6 +51,24 @@ module tb_sideways_rom_slot;
         download = 0;
         @(negedge clk);
         if (valid !== 1'b0) $fatal(1, "Truncated ROM accepted");
+        // A new complete upload must not reuse the half-word left behind
+        // by the truncated upload. Also exercise consecutive ioctl writes.
+        download = 1;
+        for (i = 0; i < 16384; i = i + 1) begin
+            write_enable = 1;
+            write_addr = i;
+            write_data = ~i[7:0];
+            @(negedge clk);
+        end
+        write_enable = 0;
+        download = 0;
+        @(negedge clk);
+        if (valid !== 1'b1) $fatal(1, "Replacement ROM rejected");
+        for (i = 0; i < 16384; i = i + 1) begin
+            read_addr = i[13:0];
+            @(negedge clk);
+            if (read_data !== ~i[7:0]) $fatal(1, "Replacement byte %h mismatch: %h", i, read_data);
+        end
         $display("PASS tb_sideways_rom_slot");
         $finish;
     end

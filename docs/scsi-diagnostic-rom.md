@@ -31,6 +31,10 @@ logic resources instead, preserving the synchronous one-clock read interface,
 MIF initialization, and the OSD loader without requiring external SDRAM.
 Read-during-write data is unspecified: the BBC remains in reset throughout
 the transfer and the slot is exposed only after all 16,384 bytes validate.
+The first 16K x 8 MLAB version also exceeded the device's 985 memory LAB
+locations. Each slot now packs two incoming bytes into one 16-bit write to an
+8K x 16 memory. That reduces the required MLAB banks from 512 to 256 per slot.
+MIFs use 8192 16-bit little-endian words; `.rom` uploads remain 16384 bytes.
 Check both MLAB and M10K usage in the fit report after changing these memories.
 
 To test the interface, choose Master mode and mount a `scsi0.dat` on the

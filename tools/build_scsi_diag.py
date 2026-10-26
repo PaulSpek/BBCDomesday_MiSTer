@@ -20,12 +20,16 @@ def main():
     if len(binary) != 16384 or binary[:3] != bytes((0x4C, binary[1], binary[2])):
         raise SystemExit("Invalid 16 KiB service ROM")
     lines = [
-        "DEPTH = 16384;", "WIDTH = 8;", "ADDRESS_RADIX = HEX;",
+        "DEPTH = 8192;", "WIDTH = 16;", "ADDRESS_RADIX = HEX;",
         "DATA_RADIX = HEX;", "CONTENT BEGIN",
     ]
     for address in range(0, len(binary), 32):
-        values = " ".join(f"{byte:02X}" for byte in binary[address:address + 32])
-        lines.append(f"{address:04X}: {values};")
+        # Pair little-endian BBC bytes to match sideways_rom_slot's wide RAM.
+        values = " ".join(
+            f"{binary[offset + 1]:02X}{binary[offset]:02X}"
+            for offset in range(address, address + 32, 2)
+        )
+        lines.append(f"{address // 2:04X}: {values};")
     lines.append("END;")
     (root / "roms/scsi_diag.mif").write_text("\n".join(lines) + "\n", encoding="ascii")
     print("Built 16 KiB diagnostic ROM in Master slot 1")

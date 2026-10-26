@@ -18,6 +18,7 @@ module tb_domesday_bridge;
 	wire ddv_index_error;
 	wire [63:0] ddv_frame_offset;
 	wire [31:0] ddv_frame_length;
+	wire [31:0] ddv_frame_number;
 	wire [31:0] pvf_width;
 	wire [31:0] pvf_height;
 	wire [31:0] pvf_frames;
@@ -26,9 +27,22 @@ module tb_domesday_bridge;
 	wire [31:0] pvf_audio_hz;
 	wire [31:0] sd_lba;
 	wire sd_rd;
+	wire [7:0] jpeg_byte;
+	wire jpeg_valid;
+	reg jpeg_ready = 1'b1;
+	wire jpeg_last;
+	wire jpeg_reset;
+	reg jpeg_next_frame = 1'b0;
+	wire jpeg_streaming;
+	wire jpeg_stream_done;
+	wire jpeg_stream_error;
 
 	reg [7:0] sector [0:511];
 	reg [7:0] index_sector [0:511];
+	reg [7:0] video_sector [0:511];
+	reg [7:0] video_sector_1 [0:511];
+	reg [7:0] streamed [0:7];
+	integer streamed_count = 0;
 	integer n;
 
 	always #5 clk = ~clk;
@@ -41,14 +55,25 @@ module tb_domesday_bridge;
 		.ddv_valid(ddv_valid), .ddv_error(ddv_error),
 		.ddv_index_valid(ddv_index_valid), .ddv_index_error(ddv_index_error),
 		.ddv_frame_offset(ddv_frame_offset), .ddv_frame_length(ddv_frame_length),
+		.ddv_frame_number(ddv_frame_number),
 		.pvf_width(pvf_width), .pvf_height(pvf_height),
 		.pvf_frames(pvf_frames), .pvf_fps_num(pvf_fps_num),
 		.pvf_fps_den(pvf_fps_den), .pvf_audio_hz(pvf_audio_hz),
+		.jpeg_byte(jpeg_byte), .jpeg_valid(jpeg_valid),
+		.jpeg_ready(jpeg_ready), .jpeg_last(jpeg_last), .jpeg_reset(jpeg_reset),
+		.jpeg_next_frame(jpeg_next_frame),
+		.jpeg_streaming(jpeg_streaming), .jpeg_stream_done(jpeg_stream_done),
+		.jpeg_stream_error(jpeg_stream_error),
 		.sd_lba(sd_lba), .sd_blk_cnt(), .sd_rd(sd_rd), .sd_wr(),
 		.sd_ack(sd_ack), .sd_buff_addr(sd_buff_addr),
 		.sd_buff_dout(sd_buff_dout), .sd_buff_wr(sd_buff_wr),
 		.sd_buff_din()
 	);
+
+	always @(posedge clk) if (jpeg_valid && jpeg_ready) begin
+		if (streamed_count < 8) streamed[streamed_count] = jpeg_byte;
+		streamed_count = streamed_count + 1;
+	end
 
 	task put_u32(input integer offset, input [31:0] value);
 	begin
@@ -56,6 +81,40 @@ module tb_domesday_bridge;
 		sector[offset + 1] = value[15:8];
 		sector[offset + 2] = value[23:16];
 		sector[offset + 3] = value[31:24];
+	end
+	endtask
+
+	task serve_frame(input [31:0] expected_lba, input integer which);
+	begin
+		wait (sd_rd);
+		if (sd_lba != expected_lba) $fatal(1, "DDV frame targeted LBA %0d, expected %0d",sd_lba,expected_lba);
+		@(posedge clk);
+		sd_ack = 1'b1;
+		@(posedge clk);
+		for (n = 0; n < 512; n = n + 1) begin
+			sd_buff_addr = n[8:0];
+			sd_buff_dout = which ? video_sector_1[n] : video_sector[n];
+			sd_buff_wr = 1'b1;
+			@(posedge clk);
+		end
+		sd_buff_wr = 1'b0;
+		sd_ack = 1'b0;
+		wait (jpeg_stream_done);
+		repeat (2) @(posedge clk);
+	end
+	endtask
+
+	task serve_index;
+	begin
+		wait (sd_rd);
+		if (sd_lba != 32'd1) $fatal(1, "DDV index did not target sector one");
+		@(posedge clk); sd_ack = 1'b1; @(posedge clk);
+		for (n = 0; n < 512; n = n + 1) begin
+			sd_buff_addr = n[8:0]; sd_buff_dout = index_sector[n];
+			sd_buff_wr = 1'b1; @(posedge clk);
+		end
+		sd_buff_wr = 1'b0; sd_ack = 1'b0;
+		repeat (3) @(posedge clk);
 	end
 	endtask
 
@@ -111,6 +170,8 @@ module tb_domesday_bridge;
 		for (n = 0; n < 512; n = n + 1) begin
 			sector[n] = 8'd0;
 			index_sector[n] = 8'd0;
+			video_sector[n] = 8'd0;
+			video_sector_1[n] = 8'd0;
 		end
 		// Header copied from the representative 3.4 GB Pi1MHz PVF.
 		put_u32( 0, 32'h31465650); // PVF1
@@ -148,18 +209,18 @@ module tb_domesday_bridge;
 		put_u32(12, 32'd576);
 		put_u32(16, 32'd25);
 		put_u32(20, 32'd1);
-		put_u32(24, 32'd1500);
+		put_u32(24, 32'd2);
 		put_u32(28, 32'd48000);
 		put_u32(32, 32'd2);
 		put_u32(36, 32'd512);       // index offset, low
 		put_u32(40, 32'd0);         // index offset, high
-		put_u32(44, 32'd24000);     // 1500 * 16 index bytes, low
+		put_u32(44, 32'd32);        // 2 * 16 index bytes, low
 		put_u32(48, 32'd0);
 		put_u32(52, 32'd24576);     // video offset, low
 		put_u32(56, 32'd0);
-		put_u32(60, 32'd125137310); // video size, low
+		put_u32(60, 32'd1024);      // video size, low
 		put_u32(64, 32'd0);
-		put_u32(68, 32'd125161984); // audio offset, low
+		put_u32(68, 32'd25600);     // audio offset, low
 		put_u32(72, 32'd0);
 		put_u32(76, 32'd11520000);  // audio size, low
 		put_u32(80, 32'd0);
@@ -168,8 +229,20 @@ module tb_domesday_bridge;
 		put_u32(92, 32'd3);         // baseline JPEG + s16le PCM
 		put_index_u32(0, 32'd0);       // first JPEG starts at video payload
 		put_index_u32(4, 32'd0);
-		put_index_u32(8, 32'd90000);   // representative JPEG payload length
+		put_index_u32(8, 32'd4);       // minimal SOI/EOI JPEG stream fixture
 		put_index_u32(12, 32'd0);
+		put_index_u32(16, 32'd512);    // second JPEG begins in next sector
+		put_index_u32(20, 32'd0);
+		put_index_u32(24, 32'd4);
+		put_index_u32(28, 32'd0);
+		video_sector[0] = 8'hff;
+		video_sector[1] = 8'hd8;
+		video_sector[2] = 8'hff;
+		video_sector[3] = 8'hd9;
+		video_sector_1[0] = 8'hff;
+		video_sector_1[1] = 8'hd8;
+		video_sector_1[2] = 8'h11;
+		video_sector_1[3] = 8'hd9;
 
 		mount_and_serve(64'd136681984);
 		if (!ddv_valid || ddv_error)
@@ -177,8 +250,23 @@ module tb_domesday_bridge;
 		if (pvf_valid || !pvf_error)
 			$fatal(1, "DDV header was misidentified as PVF");
 		if (!ddv_index_valid || ddv_index_error || ddv_frame_offset != 64'd24576 ||
-		    ddv_frame_length != 32'd90000)
-			$fatal(1, "DDV frame-zero index entry was decoded incorrectly");
+		    ddv_frame_length != 32'd4)
+			$fatal(1, "DDV frame-zero index entry was decoded incorrectly valid=%0d error=%0d offset=%0d length=%0d",
+			       ddv_index_valid, ddv_index_error, ddv_frame_offset, ddv_frame_length);
+		serve_frame(32'd48, 0);
+		if (streamed_count != 4 || streamed[0] != 8'hff || streamed[1] != 8'hd8 ||
+		    streamed[2] != 8'hff || streamed[3] != 8'hd9 || jpeg_stream_error)
+			$fatal(1, "DDV JPEG byte streaming failed");
+		jpeg_next_frame = 1'b1;
+		@(posedge clk);
+		jpeg_next_frame = 1'b0;
+		wait (!jpeg_stream_done);
+		serve_index();
+		serve_frame(32'd49, 1);
+		if (ddv_frame_number != 32'd1 || streamed_count != 8 ||
+		    streamed[4] != 8'hff || streamed[5] != 8'hd8 ||
+		    streamed[6] != 8'h11 || streamed[7] != 8'hd9 || jpeg_stream_error)
+			$fatal(1, "DDV second-frame index/stream failed");
 
 		// A fresh invalid mount must clear the previous valid state.
 		sector[0] = 8'h00;

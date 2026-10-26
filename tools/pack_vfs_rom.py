@@ -65,6 +65,11 @@ def main() -> None:
     start = ROM_BANK * ROM_SIZE
     image[start:start + ROM_SIZE] = rom
     write_mif(args.mif, image)
+    # Quartus consumes the space-efficient 40-bit derivative.  Keep it in
+    # sync whenever the locally supplied VFS ROM is updated.
+    if args.mif.resolve().parent == (Path(__file__).resolve().parents[1] / "roms"):
+        from pack_core_roms import write_packed_mif
+        write_packed_mif(args.mif.with_name("rom_packed.mif"), image)
 
 
 if __name__ == "__main__":

@@ -180,7 +180,7 @@ assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_DTR} = '1;
 assign {SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
+// DDR3 is owned by the Domesday JPEG framebuffer below.
 
 `ifdef MISTER_FB
 // Safe inactive values for the modern MiSTer framebuffer contract.  The
@@ -330,10 +330,12 @@ pll pll
 (* direct_enable=1 *) reg ce_32;
 (* direct_enable=1 *) reg ce_48;
 (* direct_enable=1 *) reg ce_24;
+(* direct_enable=1 *) reg ce_16;
 always @(negedge clk_sys) begin
 	reg [1:0] div32;
 	reg [0:0] div48;
 	reg [1:0] div24;
+	reg [2:0] div16;
 	
 	div48 <= div48 + 1'd1;
 	ce_48 <= !div48;
@@ -344,6 +346,14 @@ always @(negedge clk_sys) begin
 	div32 <= div32 + 1'd1;
 	if(div32 == 2) div32 <= 0;
 	ce_32 <= !div32;
+
+	if(div16 == 3'd5) begin
+		div16 <= 3'd0;
+		ce_16 <= 1'b1;
+	end else begin
+		div16 <= div16 + 1'b1;
+		ce_16 <= 1'b0;
+	end
 	
 	
 end
@@ -447,12 +457,22 @@ wire        domesday_ddv_index_valid;
 wire        domesday_ddv_index_error;
 wire [63:0] domesday_ddv_frame_offset;
 wire [31:0] domesday_ddv_frame_length;
+wire [31:0] domesday_ddv_frame_number;
 wire [31:0] domesday_pvf_width;
 wire [31:0] domesday_pvf_height;
 wire [31:0] domesday_pvf_frames;
 wire [31:0] domesday_pvf_fps_num;
 wire [31:0] domesday_pvf_fps_den;
 wire [31:0] domesday_pvf_audio_hz;
+wire  [7:0] domesday_jpeg_byte;
+wire        domesday_jpeg_valid;
+wire        domesday_jpeg_ready;
+wire        domesday_jpeg_last;
+wire        domesday_jpeg_reset;
+wire        domesday_jpeg_streaming;
+wire        domesday_jpeg_stream_done;
+wire        domesday_jpeg_stream_error;
+wire        domesday_jpeg_next_frame;
 wire        aiv_scsi_cs;
 wire        aiv_scsi_strobe;
 wire        aiv_scsi_rnw;
@@ -482,12 +502,22 @@ domesday_bridge domesday
 	.ddv_index_error (domesday_ddv_index_error),
 	.ddv_frame_offset(domesday_ddv_frame_offset),
 	.ddv_frame_length(domesday_ddv_frame_length),
+	.ddv_frame_number(domesday_ddv_frame_number),
 	.pvf_width       (domesday_pvf_width),
 	.pvf_height      (domesday_pvf_height),
 	.pvf_frames      (domesday_pvf_frames),
 	.pvf_fps_num     (domesday_pvf_fps_num),
 	.pvf_fps_den     (domesday_pvf_fps_den),
 	.pvf_audio_hz    (domesday_pvf_audio_hz),
+	.jpeg_byte       (domesday_jpeg_byte),
+	.jpeg_valid      (domesday_jpeg_valid),
+	.jpeg_ready      (domesday_jpeg_ready),
+	.jpeg_last       (domesday_jpeg_last),
+	.jpeg_reset      (domesday_jpeg_reset),
+	.jpeg_next_frame (domesday_jpeg_next_frame),
+	.jpeg_streaming  (domesday_jpeg_streaming),
+	.jpeg_stream_done(domesday_jpeg_stream_done),
+	.jpeg_stream_error(domesday_jpeg_stream_error),
 	.sd_lba          (sd_lba[3]),
 	.sd_blk_cnt      (sd_blk_cnt[3]),
 	.sd_rd           (sd_rd[3]),
@@ -569,10 +599,14 @@ wire [18:0] mem_addr;
 wire  [7:0] mem_din;
 
 reg  [17:0] rom_addr;
-reg  [7:0] rom_dout;
+wire [7:0] rom_dout;
 wire [7:0] rom_data;
 
-(* ram_init_file = "roms/rom.mif" *) reg [7:0] rom[16 * 16384];
+packed_bbc_rom builtin_rom (
+	.clk(clk_sys), .read_addr(rom_addr), .read_data(rom_dout),
+	.write_enable(!ioctl_index && ioctl_wr && reset),
+	.write_addr(ioctl_addr[17:0]), .write_data(ioctl_dout)
+);
 wire [7:0] cartridge_data;
 wire cartridge_valid, rom_loading;
 sideways_rom_bank cartridge_roms (
@@ -582,10 +616,6 @@ sideways_rom_bank cartridge_roms (
     .write_enable(ioctl_wr), .write_addr(ioctl_addr), .write_data(ioctl_dout),
     .loading(rom_loading)
 );
-always @(posedge clk_sys) if(!ioctl_index && ioctl_wr && reset) rom[reset ? ioctl_addr[17:0] : rom_addr[17:0]] <= ioctl_dout;
-always @(posedge clk_sys) rom_dout <= rom[rom_addr[17:0]];
-
-
 // Beeb ROM Images
 // NOTE: Slots 0-3 and 9-15 correspond to the equivalent paged ROMS in the BBC
 // Slots 4-7 are presented as RAM and these ROMS are not in the paged ROM space
@@ -664,9 +694,34 @@ reg [7:0] ram_dout;
 	always @(posedge clk_sys) if(mem_addr[18] & mem_addr[17] & old_we & ~mem_we_n) ram[mem_addr[16:0]] <= mem_din;
 	always @(posedge clk_sys) if(mem_addr[17]) ram_dout <= ram[mem_addr[16:0]]; else ram_dout <=0;
 `else
-	reg [7:0] ram[212992];
-	always @(posedge clk_sys) if(mem_addr[18] & old_we & ~mem_we_n) ram[mem_addr[17:0]] <= mem_din;
-	always @(posedge clk_sys) ram_dout <= ram[mem_addr[17:0]];
+	// The Domesday video decoder needs 15 M10Ks.  Preserve the complete 64 KiB
+	// 65C02 Tube RAM and every Master memory region, but omit sideways-RAM bank
+	// 7 (cartridge ROM positions 0-3 are separate MLAB memories).  Packing RAM
+	// banks 8-12 down by one releases a full 16 KiB / 16 M10K allocation.
+	// Keep each side of the hole as a directly indexed synchronous RAM.  An
+	// arithmetic packed address prevents Quartus 17 from inferring M10Ks.
+	reg [7:0] ram_low[7 * 16384];  // banks 0-6: Tube + SWRAM 4-6
+	reg [7:0] ram_high[5 * 16384]; // banks 8-12: main/shadow/filing RAM
+	reg [7:0] ram_low_dout;
+	reg [7:0] ram_high_dout;
+	always @(posedge clk_sys) begin
+		if(mem_addr[18] && mem_addr[17:14] < 4'd7) begin
+			if(old_we & ~mem_we_n) ram_low[mem_addr[16:0]] <= mem_din;
+			ram_low_dout <= ram_low[mem_addr[16:0]];
+		end
+	end
+	always @(posedge clk_sys) begin
+		if(mem_addr[18] && mem_addr[17:14] > 4'd7 && mem_addr[17:14] <= 4'd12) begin
+			if(old_we & ~mem_we_n) ram_high[mem_addr[16:0]] <= mem_din;
+			ram_high_dout <= ram_high[mem_addr[16:0]];
+		end
+	end
+	always_comb begin
+		if(mem_addr[18] && mem_addr[17:14] < 4'd7) ram_dout = ram_low_dout;
+		else if(mem_addr[18] && mem_addr[17:14] > 4'd7 && mem_addr[17:14] <= 4'd12)
+			ram_dout = ram_high_dout;
+		else ram_dout = 8'd0;
+	end
 `endif
 
 
@@ -725,9 +780,9 @@ bbc_micro_core BBCMicro(
 	.video_sel(clk_sel),
 	.video_cepix(ce_pix),
 //	.video_cerate(ce_rate),
-	.video_red(red_vid),
-	.video_green(green_vid),
-	.video_blue(blue_vid),
+	.video_red(bbc_red_vid),
+	.video_green(bbc_green_vid),
+	.video_blue(bbc_blue_vid),
 	.video_vblank(VBlank),
 	.video_hblank(HBlank),
 	.video_vsync(VSync),
@@ -851,7 +906,30 @@ assign AUDIO_S = 1;
 wire [1:0] scale = status[3:2];
 
 wire HSync, VSync, HBlank, VBlank, clk_sel, odd_field;
-wire [3:0] red_vid,green_vid,blue_vid;
+wire [3:0] bbc_red_vid, bbc_green_vid, bbc_blue_vid;
+wire [3:0] red_vid, green_vid, blue_vid;
+wire domesday_picture_ready;
+
+domesday_video domesday_compositor
+(
+	.clk(clk_sys), .reset(reset),
+	.jpeg_byte(domesday_jpeg_byte), .jpeg_valid(domesday_jpeg_valid),
+	.jpeg_ready(domesday_jpeg_ready), .jpeg_last(domesday_jpeg_last),
+	.jpeg_reset(domesday_jpeg_reset),
+	.jpeg_next_frame(domesday_jpeg_next_frame),
+	.ce_grid(ce_16),
+	.bbc_r(bbc_red_vid), .bbc_g(bbc_green_vid), .bbc_b(bbc_blue_vid),
+	.bbc_hblank(HBlank), .bbc_vblank(VBlank),
+	.bbc_hsync(HSync), .bbc_vsync(VSync), .odd_field(odd_field),
+	.video_r(red_vid), .video_g(green_vid), .video_b(blue_vid),
+	.picture_ready(domesday_picture_ready),
+	.DDRAM_BUSY(DDRAM_BUSY), .DDRAM_BURSTCNT(DDRAM_BURSTCNT),
+	.DDRAM_ADDR(DDRAM_ADDR), .DDRAM_DOUT(DDRAM_DOUT),
+	.DDRAM_DOUT_READY(DDRAM_DOUT_READY), .DDRAM_RD(DDRAM_RD),
+	.DDRAM_DIN(DDRAM_DIN), .DDRAM_BE(DDRAM_BE), .DDRAM_WE(DDRAM_WE)
+);
+
+assign DDRAM_CLK = clk_sys;
 
 assign CLK_VIDEO = clk_sys;
 video_mixer #(640, 1, 1) mixer

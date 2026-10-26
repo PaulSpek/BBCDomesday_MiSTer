@@ -1,4 +1,8 @@
 // Four shared OSD ROM images, available in slots 0..3 in either BBC model.
+//
+// All slots share one M10K-backed store.  Each 16 KiB image occupies 3277
+// 40-bit words (five bytes per word plus one padded tail byte), keeping slot
+// uploads independent while using every bit of the physical RAM blocks.
 module sideways_rom_bank (
     input clk,
     input [1:0] read_slot,
@@ -12,24 +16,74 @@ module sideways_rom_bank (
     input [7:0] write_data,
     output loading
 );
-    wire [31:0] data_slots;
-    wire [3:0] valid_slots, loading_slots;
-    genvar slot;
-    generate for (slot=0; slot<4; slot=slot+1) begin : slots
-        sideways_rom_slot #(
-            .FILE_INDEX(5 + slot),
-            .INIT_FILE(slot == 1 ? "roms/scsi_diag.mif" : "roms/empty_sideways.mif"),
-            .DEFAULT_VALID(slot == 1)
-        ) image (
-            .clk(clk), .read_addr(read_addr), .read_data(data_slots[slot * 8 +: 8]),
-            .valid(valid_slots[slot]), .download(download), .file_index(file_index),
-            .write_enable(write_enable), .write_addr(write_addr), .write_data(write_data),
-            .loading(loading_slots[slot])
-        );
-    end endgenerate
-    assign read_data = data_slots[read_slot * 8 +: 8];
+    localparam integer WORDS_PER_SLOT = 3277;
+    localparam integer TOTAL_WORDS = 4 * WORDS_PER_SLOT;
+
+    (* ramstyle = "M10K, no_rw_check", ram_init_file = "roms/cartridge_roms_packed.mif" *)
+    reg [39:0] memory [0:TOTAL_WORDS-1];
+
+    reg [3:0] valid_slots = 4'b0010; // diagnostic ROM powers up in slot 1
+    wire selected = file_index >= 8'd5 && file_index <= 8'd8;
+    wire [1:0] load_slot = file_index[1:0] - 2'd1;
+    assign loading = download && selected;
     assign valid = valid_slots[read_slot];
-    assign loading = |loading_slots;
+
+    wire [11:0] read_local_group = read_addr / 14'd5;
+    wire  [2:0] read_lane = read_addr % 14'd5;
+    wire [13:0] read_group = read_slot * WORDS_PER_SLOT + read_local_group;
+    reg  [39:0] read_word = 40'd0;
+    reg   [2:0] read_lane_q = 3'd0;
+    assign read_data = read_word[{read_lane_q, 3'b000} +: 8];
+
+    reg        was_loading = 1'b0;
+    reg [1:0]  active_slot = 2'd0;
+    reg [14:0] expected_addr = 15'd0;
+    reg        bad_transfer = 1'b0;
+    reg [31:0] upload_prefix = 32'd0;
+    reg [13:0] write_group = 14'd0;
+    reg  [2:0] write_lane = 3'd0;
+
+    always @(posedge clk) begin
+        read_word <= memory[read_group];
+        read_lane_q <= read_lane;
+        was_loading <= loading;
+
+        if (loading && !was_loading) begin
+            active_slot <= load_slot;
+            valid_slots[load_slot] <= 1'b0;
+            expected_addr <= 15'd0;
+            bad_transfer <= 1'b0;
+            upload_prefix <= 32'd0;
+            write_group <= load_slot * WORDS_PER_SLOT;
+            write_lane <= 3'd0;
+        end
+
+        if (loading && write_enable) begin
+            if ((was_loading && load_slot != active_slot) || write_addr >= 25'd16384 ||
+                write_addr != (was_loading ? {10'd0, expected_addr} : 25'd0)) begin
+                bad_transfer <= 1'b1;
+            end else begin
+                if (!was_loading || write_addr == 25'd0) begin
+                    upload_prefix[7:0] <= write_data;
+                    write_lane <= 3'd1;
+                end else if (write_addr == 25'd16383) begin
+                    memory[write_group] <= {8'd0, write_data, upload_prefix[23:0]};
+                    write_lane <= 3'd0;
+                end else if (write_lane == 3'd4) begin
+                    memory[write_group] <= {write_data, upload_prefix};
+                    write_group <= write_group + 1'b1;
+                    write_lane <= 3'd0;
+                end else begin
+                    upload_prefix[{write_lane, 3'b000} +: 8] <= write_data;
+                    write_lane <= write_lane + 1'b1;
+                end
+                expected_addr <= (was_loading ? expected_addr : 15'd0) + 1'b1;
+            end
+        end
+
+        if (!loading && was_loading)
+            valid_slots[active_slot] <= !bad_transfer && expected_addr == 15'd16384;
+    end
 endmodule
 
 // Built-in ROM routing, plus model-independent overlays in cartridge 0..3.

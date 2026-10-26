@@ -66,7 +66,7 @@ phase: C/D, I/O, REQ, BSY and MSG are all high. The diagnostic originally
 expected `63`, incorrectly omitting C/D. The corrected ROM expects `E3`; this
 does not change the FPGA SCSI adapter.
 
-Version 1.1 also prints the current X register as `X=nn` on a failure. For
+Version 1.2 prints the current X register as `X=nn` on a failure. For
 READ6 it is the number of 256-byte data bytes already consumed; for F-code it
 distinguishes a failure at the initial data-out/data-in phase (`X=00`) from a
 later byte-transfer failure. TUR and CAPACITY use X while constructing their

@@ -111,7 +111,29 @@ try {
         PassThru               = `$true
     }
     `$quartusProcess = Start-Process @quartusParameters
-    `$exitCode = [int]`$quartusProcess.ExitCode
+    # Quartus 17.0.2 can report a fatal fitter access violation but leave
+    # quartus_sh and/or quartus_fit alive. Waiting only for the parent then
+    # leaves the detached build in a permanent "Running" state. Inspect its
+    # redirected log and terminate this build's process tree on that error.
+    `$fatalPattern = '^\*\*\* Fatal Error:'
+    while (-not `$quartusProcess.HasExited) {
+        Start-Sleep -Seconds 5
+        `$quartusProcess.Refresh()
+        if (Test-Path -LiteralPath `$LogPath -PathType Leaf) {
+            `$fatalMatch = Select-String -LiteralPath `$LogPath -Pattern `$fatalPattern -ErrorAction SilentlyContinue |
+                Select-Object -Last 1
+            if (`$fatalMatch) {
+                `$failure = "Quartus fatal error: `$(`$fatalMatch.Line.Trim())"
+                & taskkill.exe /PID `$quartusProcess.Id /T /F 2>`$null | Out-Null
+                `$quartusProcess.WaitForExit()
+                `$exitCode = 1
+                break
+            }
+        }
+    }
+    if (`$quartusProcess.HasExited -and -not `$failure) {
+        `$exitCode = [int]`$quartusProcess.ExitCode
+    }
 }
 catch {
     `$failure = `$_.Exception.Message

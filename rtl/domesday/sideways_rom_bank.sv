@@ -18,8 +18,10 @@ module sideways_rom_bank (
     localparam integer WORDS_PER_SLOT = 3277;
     localparam integer TOTAL_WORDS = 4 * WORDS_PER_SLOT;
 
+`ifndef SYNTHESIS
     (* ramstyle = "M10K, no_rw_check", ram_init_file = "roms/cartridge_roms_packed.mif" *)
     reg [39:0] memory [0:TOTAL_WORDS-1];
+`endif
 
     reg [3:0] valid_slots = 4'b0010; // diagnostic ROM powers up in slot 1
     wire selected = file_index >= 8'd5 && file_index <= 8'd8;
@@ -30,7 +32,11 @@ module sideways_rom_bank (
     wire [11:0] read_local_group = read_addr / 14'd5;
     wire  [2:0] read_lane = read_addr % 14'd5;
     wire [13:0] read_group = read_slot * WORDS_PER_SLOT + read_local_group;
+`ifdef SYNTHESIS
+    wire [39:0] read_word;
+`else
     reg  [39:0] read_word = 40'd0;
+`endif
     reg   [2:0] read_lane_q = 3'd0;
     assign read_data = read_word[{read_lane_q, 3'b000} +: 8];
 
@@ -51,9 +57,29 @@ module sideways_rom_bank (
     wire [39:0] memory_data = tail ? {8'd0, write_data, upload_prefix[23:0]} :
                                                    {write_data, upload_prefix};
 
+`ifdef SYNTHESIS
+    altsyncram memory (
+        .clock0(clk), .address_a(memory_address), .data_a(memory_data),
+        .wren_a(commit_word), .q_a(read_word), .rden_a(1'b1),
+        .clocken0(1'b1), .clocken2(1'b1), .aclr0(1'b0),
+        .addressstall_a(1'b0), .byteena_a(1'b1)
+    );
+    defparam memory.operation_mode = "SINGLE_PORT",
+        memory.width_a = 40, memory.widthad_a = 14, memory.numwords_a = TOTAL_WORDS,
+        memory.outdata_reg_a = "UNREGISTERED",
+        memory.ram_block_type = "M10K",
+        memory.intended_device_family = "Cyclone V",
+        memory.init_file = "roms/cartridge_roms_packed.mif",
+        memory.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",
+        memory.width_byteena_a = 1,
+        memory.lpm_type = "altsyncram";
+`else
     always @(posedge clk) begin
         read_word <= memory[memory_address];
         if (commit_word) memory[memory_address] <= memory_data;
+    end
+`endif
+    always @(posedge clk) begin
         read_lane_q <= read_lane;
         was_loading <= loading;
 

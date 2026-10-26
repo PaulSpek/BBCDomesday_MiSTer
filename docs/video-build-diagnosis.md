@@ -27,6 +27,10 @@ Use five-byte words with a shared read/write address. CPU reset already covers
 cartridge uploads; built-in uploads are accepted only during reset. Target:
 205 blocks for built-in ROM and 52 for cartridges (63 fewer than 32-bit mode).
 This is a prediction until STUDEER's report confirms single-port mapping.
+The 20:07 build still inferred DUAL_PORT despite the shared address, so it
+was stopped during synthesis. The hardware implementation now explicitly
+instantiates altsyncram with operation_mode=SINGLE_PORT. Behavioral simulation
+uses the corresponding single-address array; read data during upload is unused.
 
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all

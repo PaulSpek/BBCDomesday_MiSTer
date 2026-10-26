@@ -153,6 +153,12 @@ module tb_aiv_scsi_adapter;
 			fred_write(2'd0, (n == 0) ? "?" : (n == 1) ? "P" : (n == 2) ? 8'h0d : 8'h00);
 			wait_req(1'b0);
 		end
+		// FC42/FC43 readbacks are temporary hardware-diagnostic visibility:
+		// the final F-code byte must be the sole transition to STATUS.
+		addr = 2'd2; rnw = 1'b1; #1;
+		if (dout != 8'hff) $fatal(1, "F-Code diagnostic count=%02x", dout);
+		addr = 2'd3; rnw = 1'b1; #1;
+		if (dout != 8'h05) $fatal(1, "F-Code diagnostic phase=%02x", dout);
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "WRITE F-Code status");
 		read_target_byte(byte_read); if (byte_read != 8'h00) $fatal(1, "WRITE F-Code message");
 

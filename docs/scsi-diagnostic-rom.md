@@ -72,6 +72,14 @@ distinguishes a failure at the initial data-out/data-in phase (`X=00`) from a
 later byte-transfer failure. TUR and CAPACITY use X while constructing their
 CDB/data loop, so its value is only diagnostic for the streaming tests.
 
+The next temporary diagnostic-core build additionally prints `DC=nn PH=n`
+after a failure. `DC` is the adapter's internal low-byte transfer counter;
+`PH` is its internal phase number (`5` is status and `7` is data-out). These
+readbacks occupy the otherwise unused read sides of `&FC42` and `&FC43`; their
+write behaviour remains the normal SELECT and IRQ-enable interface. They are
+for the hardware diagnosis only and will be removed or replaced by a stable
+status interface after the F-code mismatch is resolved.
+
 BeebEm check (2026-10-26): the initial ROM printed each diagnostic line over
 the preceding one because it sent CR through OSWRCH. Text now uses OSASCI,
 which advances to the next line. The updated standalone binary is at

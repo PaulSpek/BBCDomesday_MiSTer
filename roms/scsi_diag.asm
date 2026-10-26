@@ -271,6 +271,16 @@ LDA #32:JSR oswrch
 LDA #88:JSR oswrch
 LDA #61:JSR oswrch
 TXA:JSR hexbyte
+LDA #32:JSR oswrch
+LDA #68:JSR oswrch
+LDA #67:JSR oswrch
+LDA #61:JSR oswrch
+LDA &FC42:JSR hexbyte
+LDA #32:JSR oswrch
+LDA #80:JSR oswrch
+LDA #72:JSR oswrch
+LDA #61:JSR oswrch
+LDA &FC43:JSR hexbyte
 LDA #13:JSR osasci
 LDA #0:STA &FC43
 RTS

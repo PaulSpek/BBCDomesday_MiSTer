@@ -175,7 +175,14 @@ always @* begin
 				dout = dout | ST_INO;
 			if (phase == PH_MESSAGE) dout = dout | ST_MSG;
 		end
-		default: dout = 8'hFF;
+		// Temporary hardware-diagnostic readback.  FC42 and FC43 are write
+		// registers in the Pi1MHz protocol (SELECT and IRQ enable
+		// respectively); its normal software never consumes their read value.
+		// Keeping the adapter's counter and phase observable lets the BBC
+		// diagnostic distinguish a genuine short DATA OUT from duplicate bus
+		// strobes that make the target reach STATUS too early.
+		2'd2: dout = data_count[7:0];
+		2'd3: dout = {4'b0000, phase};
 	endcase
 end
 

@@ -68,7 +68,9 @@ if (-not (Test-Path -LiteralPath $quartusLiteral -PathType Leaf)) {
 `$stateDirectory = Join-Path `$repo '.remote-build'
 `$currentPath = Join-Path `$stateDirectory 'current.json'
 `$quartusNames = 'quartus_sh','quartus_map','quartus_fit','quartus_asm','quartus_sta','quartus_cdb','quartus_syn','quartus_eda'
-`$activeQuartus = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { `$quartusNames -contains `$_.ProcessName.ToLowerInvariant() })
+`$activeQuartus = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+    (`$quartusNames -contains `$_.ProcessName.ToLowerInvariant()) -and -not `$_.HasExited
+})
 if (`$activeQuartus) {
     `$description = (`$activeQuartus | ForEach-Object { "`$(`$_.ProcessName):`$(`$_.Id)" }) -join ', '
     throw "A Quartus build is already active: `$description"

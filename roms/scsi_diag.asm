@@ -275,13 +275,13 @@ LDA #32:JSR oswrch
 LDA #68:JSR oswrch
 LDA #67:JSR oswrch
 LDA #61:JSR oswrch
-LDA #&D1:STA &FC43
+LDA #&D1:STA &FC42
 LDA &FC40:JSR hexbyte
 LDA #32:JSR oswrch
 LDA #80:JSR oswrch
 LDA #72:JSR oswrch
 LDA #61:JSR oswrch
-LDA #&D2:STA &FC43
+LDA #&D2:STA &FC42
 LDA &FC40:JSR hexbyte
 LDA #13:JSR osasci
 LDA #0:STA &FC43
@@ -315,7 +315,7 @@ JMP oswrch
 .freadtab EQUB &C8,0,0,0,0,0
 .fcodetext EQUB "?","P",13
 SKIP 253
-.banner EQUS "AIV SCSI diagnostic v1.2",13,"FC41 phases / bounded timeout",13,0
+.banner EQUS "AIV SCSI diagnostic v1.3",13,"FC41 phases / bounded timeout",13,0
 .busname EQUS "BUS FREE: ",0
 .turname EQUS "TUR host 10: ",0
 .capname EQUS "CAPACITY host 10: ",0

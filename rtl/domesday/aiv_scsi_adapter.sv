@@ -227,26 +227,26 @@ always @(posedge clk) begin
 			// FC42: host asserts SELECT and presents its initiator ID.  VFS uses
 			// ID 16; preserving it is needed to distinguish its group-6 F-code
 			// protocol from the ordinary READ(6) command with the same opcode.
-			host_id <= din;
-			phase <= PH_COMMAND;
-			cdb_count <= 4'd0;
-			scsi_status <= 8'h00;
-			req_asserted <= 1'b1;
-			req_gap <= 6'd0;
-		end
-		if (strobe && !rnw && addr == 2'd3) begin
 			if (din == 8'hD1) begin
 				debug_read <= 2'd1;
 			end else if (din == 8'hD2) begin
 				debug_read <= 2'd2;
 			end else begin
-				irq_enable <= din[0];
-				// FC43=0 acknowledges/clears the active-low BBC IRQ.  Enabling
-				// it while REQ is already asserted immediately presents the IRQ,
-				// precisely as Pi1MHz's harddisc_emulator.c does.
-				if (!din[0]) irq_pending <= 1'b0;
-				else if (req_asserted) irq_pending <= 1'b1;
+				host_id <= din;
+				phase <= PH_COMMAND;
+				cdb_count <= 4'd0;
+				scsi_status <= 8'h00;
+				req_asserted <= 1'b1;
+				req_gap <= 6'd0;
 			end
+		end
+		if (strobe && !rnw && addr == 2'd3) begin
+			irq_enable <= din[0];
+			// FC43=0 acknowledges/clears the active-low BBC IRQ.  Enabling
+			// it while REQ is already asserted immediately presents the IRQ,
+			// precisely as Pi1MHz's harddisc_emulator.c does.
+			if (!din[0]) irq_pending <= 1'b0;
+			else if (req_asserted) irq_pending <= 1'b1;
 		end
 
 		// A REQ edge is the event source.  Keep it latched until FC43=0;

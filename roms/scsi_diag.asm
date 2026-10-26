@@ -10,6 +10,13 @@ result = &75
 sample = &76
 index = &77
 checksum = &78
+txcount = &79
+rxcount = &7B
+stage = &7D
+endstep = &7E
+valid = &7F
+failx = &80
+reply = &81
 
 ORG &8000
 .romstart
@@ -19,7 +26,7 @@ EQUB &82
 EQUB copyright-1-romstart
 EQUB 1
 EQUS "SCSI DIAG",0
-EQUS "1.0",0
+EQUS "1.5",0
 EQUB 0
 .copyright EQUS "(C)2026 Domesday project",0
 
@@ -61,6 +68,12 @@ RTS
 .command EQUS "SCSITEST"
 
 .run
+LDX #&17
+LDA #0
+.clearwork
+STA &70,X
+DEX
+BPL clearwork
 LDA #0:STA &FC43
 LDA #22:JSR oswrch
 LDA #7:JSR oswrch
@@ -164,24 +177,38 @@ JMP afterread
 LDA #fcodename MOD 256:STA ptr
 LDA #fcodename DIV 256:STA ptr+1
 JSR print
+LDA #0:STA endstep:STA valid
+LDA #1:STA stage
 LDA #&10:STA &FC42
 LDX #0
 .fwritecdb
 LDA #&A2:JSR waitphase
-BCS fcodefail
+BCC fwritecdbready
+JMP fcodefail
+.fwritecdbready
 LDA fwritetab,X:STA &FC40
 INX
 CPX #6
 BNE fwritecdb
+LDA #2:STA stage
 LDX #0
 .fwriteblock
 LDA #&22:JSR waitphase
-BCS fcodefail
+BCC fwriteblockready
+JMP fcodefail
+.fwriteblockready
 LDA fcodetext,X:STA &FC40
+INC txcount
+BNE txnowrap
+INC txcount+1
+.txnowrap
 INX
 BNE fwriteblock
+LDA #3:STA stage
 JSR endcommand
 BCS fcodefail
+LDA #4:STA stage
+LDA #0:STA endstep:STA valid
 LDA #&10:STA &FC42
 LDX #0
 .freadcdb
@@ -191,21 +218,30 @@ LDA freadtab,X:STA &FC40
 INX
 CPX #6
 BNE freadcdb
+LDA #5:STA stage
 LDX #0
 .freadblock
 LDA #&62:JSR waitphase
 BCS fcodefail
 LDA &FC40
-CPX #0
-BNE notfirst
-CMP #80
-BNE fcodefail
+CPX #7
+BCS notfirst
+STA reply,X
 .notfirst
+INC rxcount
+BNE rxnowrap
+INC rxcount+1
+.rxnowrap
 INX
 BNE freadblock
+LDA #6:STA stage
 JSR endcommand
 BCS fcodefail
+LDA #7:STA stage
+LDA reply:CMP #80
+BNE fcodefail
 JSR passline
+JSR metrics
 JMP done
 .fcodefail JSR fail
 .done
@@ -237,15 +273,20 @@ CLC
 RTS
 
 .endcommand
+LDA #1:STA endstep
+LDA #0:STA valid
 LDA #&E2:JSR waitphase
 BCS endfail
 LDA &FC40:STA sample
+LDA #1:STA valid
+LDA #2:STA endstep
 \ Message-in has C/D, I/O, REQ, BSY and MSG all asserted: FC41=&E3.
 \ &63 incorrectly omitted C/D, making every normally completed command fail
 \ only after its valid status byte had been read.
 LDA #&E3:JSR waitphase
 BCS endfail
 LDA &FC40:STA index
+LDA #3:STA valid:STA endstep
 LDA #0:JSR waitphase
 BCS endfail
 LDA sample
@@ -263,6 +304,16 @@ LDA #oktext MOD 256:STA ptr
 LDA #oktext DIV 256:STA ptr+1
 JMP print
 .fail
+STX failx
+\ If a streaming wait found STATUS, capture its byte once. No debug
+\ selector writes are needed, making v1.5 independent of FPGA debug HDL.
+LDA laststatus:AND #&E3:CMP #&E2
+BNE failprint
+LDA valid:AND #1
+BNE failprint
+LDA &FC40:STA sample
+LDA #1:STA valid
+.failprint
 LDA #failtext MOD 256:STA ptr
 LDA #failtext DIV 256:STA ptr+1
 JSR print
@@ -270,22 +321,42 @@ LDA laststatus:JSR hexbyte
 LDA #32:JSR oswrch
 LDA #88:JSR oswrch
 LDA #61:JSR oswrch
-TXA:JSR hexbyte
-LDA #32:JSR oswrch
-LDA #68:JSR oswrch
-LDA #67:JSR oswrch
-LDA #61:JSR oswrch
-LDA #&D1:STA &FC42
-LDA &FC40:JSR hexbyte
-LDA #32:JSR oswrch
-LDA #80:JSR oswrch
-LDA #72:JSR oswrch
-LDA #61:JSR oswrch
-LDA #&D2:STA &FC42
-LDA &FC40:JSR hexbyte
+LDA failx:JSR hexbyte
 LDA #13:JSR osasci
+JSR metrics
 LDA #0:STA &FC43
 RTS
+.metrics
+LDA #metrictext MOD 256:STA ptr
+LDA #metrictext DIV 256:STA ptr+1
+JSR print
+LDA stage:JSR hexbyte
+LDA #47:JSR oswrch
+LDA endstep:JSR hexbyte
+LDA #32:JSR oswrch
+LDA result:JSR hexbyte
+LDA #32:JSR oswrch
+LDA txcount+1:JSR hexbyte
+LDA txcount:JSR hexbyte
+LDA #47:JSR oswrch
+LDA rxcount+1:JSR hexbyte
+LDA rxcount:JSR hexbyte
+LDA #13:JSR osasci
+LDA #replytext MOD 256:STA ptr
+LDA #replytext DIV 256:STA ptr+1
+JSR print
+LDA valid:JSR hexbyte
+LDA #32:JSR oswrch
+LDA sample:JSR hexbyte
+LDA #47:JSR oswrch
+LDA index:JSR hexbyte
+LDA #32:JSR oswrch
+LDX #0
+.replyprint
+LDA reply,X:JSR hexbyte
+LDA #32:JSR oswrch
+INX:CPX #7:BNE replyprint
+LDA #13:JMP osasci
 .print
 LDY #0
 .printloop
@@ -315,7 +386,7 @@ JMP oswrch
 .freadtab EQUB &C8,0,0,0,0,0
 .fcodetext EQUB "?","P",13
 SKIP 253
-.banner EQUS "AIV SCSI diagnostic v1.4",13,"FC41 phases / bounded timeout",13,0
+.banner EQUS "AIV SCSI diagnostic v1.5",13,"FC41 phases / bounded timeout",13,0
 .busname EQUS "BUS FREE: ",0
 .turname EQUS "TUR host 10: ",0
 .capname EQUS "CAPACITY host 10: ",0
@@ -323,6 +394,8 @@ SKIP 253
 .fcodename EQUS "F-CODE ?P: ",0
 .oktext EQUS "PASS",13,0
 .failtext EQUS "FAIL FC41=",0
+.metrictext EQUS "STEP/END EXP TX/RX: ",0
+.replytext EQUS "VALID S/M REPLY: ",0
 .footer EQUS "Done. Report full screen text.",13,0
 
 SKIP &C000-P%

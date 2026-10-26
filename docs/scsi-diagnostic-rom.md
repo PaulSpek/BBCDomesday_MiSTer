@@ -52,7 +52,7 @@ Record all output, including FC41 hex on failure. The tests are:
 Each phase wait times out after a bounded number of status polls. On failure,
 the ROM reports the last FC41 byte and continues with a fresh selection. A
 PASS means this test completed, not that the full Pi1MHz command set or VFS
-works. The ROM uses zero-page `&70–&78` as transient command workspace; it
+works. The ROM uses zero-page `&70–&87` as transient command workspace; it
 does not claim permanent RAM or intercept IRQs. The test does not write media.
 
 The test source intentionally avoids use of the current filing system, so it
@@ -66,20 +66,36 @@ phase: C/D, I/O, REQ, BSY and MSG are all high. The diagnostic originally
 expected `63`, incorrectly omitting C/D. The corrected ROM expects `E3`; this
 does not change the FPGA SCSI adapter.
 
-Version 1.4 prints the current X register as `X=nn` on a failure. For
-READ6 it is the number of 256-byte data bytes already consumed; for F-code it
-distinguishes a failure at the initial data-out/data-in phase (`X=00`) from a
-later byte-transfer failure. TUR and CAPACITY use X while constructing their
-CDB/data loop, so its value is only diagnostic for the streaming tests.
+Version 1.5 is usable with the existing RBF. It deliberately does not invoke
+the unvalidated FPGA debug selectors from v1.2–v1.4. Its measurements are
+collected by the ROM through normal SCSI registers. It prints:
 
-The next temporary diagnostic-core build additionally prints `DC=nn PH=n`
-after a failure. `DC` is the adapter's internal low-byte transfer counter;
-`PH` is its internal phase number (`5` is status and `7` is data-out). The
-diagnostic selects these readbacks with the otherwise unused FC42 write values
-`&D1` and `&D2`, then reads the result through FC40, a path already proven on
-the BBC. Normal FC42 host-ID values retain their SELECT behaviour. This is for
-hardware diagnosis only and will be removed or replaced by a stable status
-interface after the F-code mismatch is resolved.
+`STEP/END EXP TX/RX: 02/00 22 00FE/0000`
+
+- STEP: 01 write CDB, 02 write data, 03 write completion, 04 read CDB,
+  05 read data, 06 read completion, 07 verify reply. 00 denotes earlier tests.
+- END: 00 before completion, 01 waiting for status, 02 waiting for message,
+  03 waiting for bus free or checking the completion bytes.
+- EXP: expected phase, compared against FC41 masked with E3.
+- TX/RX: separate 16-bit hexadecimal counts of F-code data writes/reads
+  performed by the ROM. 0100 means 256. These do not prove FPGA acceptance.
+
+`VALID S/M REPLY: 01 02/00 00 00 00 00 00 00 00`
+
+- VALID: bit 0 means S (status byte) was captured; bit 1 means M (message)
+  was captured. Ignore S/M values whose validity bits are clear.
+- REPLY: first seven F-code reply bytes. Only bytes below RX are valid.
+- A pending STATUS byte at a failed streaming wait is read once, before
+  printing, to record whether it contains GOOD (00) or CHECK CONDITION (02).
+- X is saved immediately on entry to the failure handler, before output.
+
+Run `tools/test_scsi_diag.py` with py65 installed after assembling. It executes
+the actual service ROM against a scripted register model for success, a short
+write at 254 bytes, and a short read at 254 bytes. It checks the step, counters,
+status validity and reply capture. This validates ROM reporting; real BBC bus
+timing and the cause of the FPGA failure still require hardware measurements.
+
+Increment the displayed and header version for every diagnostic revision.
 
 BeebEm check (2026-10-26): the initial ROM printed each diagnostic line over
 the preceding one because it sent CR through OSWRCH. Text now uses OSASCI,

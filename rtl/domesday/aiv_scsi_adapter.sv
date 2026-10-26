@@ -392,9 +392,10 @@ always @(posedge clk) begin
 
 		// A FC40 read is the host acknowledge for target-to-host phases.
 		if (strobe && rnw && addr == 2'd0 && req_asserted) begin
-			if (debug_read != 2'd0) begin
-				debug_read <= 2'd0;
-			end else case (phase)
+			// Keep a selected diagnostic value stable while the BBC samples
+			// FC40. Clearing debug_read on this same edge changes dout too early
+			// for the 1 MHz CPU and makes the read appear as normal data (00).
+			if (debug_read == 2'd0) case (phase)
 			PH_DATA: begin
 				if (data_count + 1'b1 >= data_length) begin
 					data_reg <= scsi_status;

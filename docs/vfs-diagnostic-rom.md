@@ -46,6 +46,12 @@ The original error text is preserved. If output stops after D1 and then shows
 remaining VFS startup path. If D2 or later appears, report the last marker and
 its `I` value.
 
+Hardware testing subsequently established that this branch is normal VFS
+behaviour: `*TV 0,0` enables the interlaced BBC video mode required by VFS,
+after which the message disappears. Do not use the diagnostic ROM merely to
+investigate that message. It remains useful only if startup stops at a later
+checkpoint after the valid `*TV 0,0` setup.
+
 This ROM is intended to replace the fixed VFS ROM for a diagnostic build.
 Loading it concurrently into cartridge slot 0-3 while the normal VFS remains
 in fixed slot 8 would create two copies of the same filing-system ROM and is

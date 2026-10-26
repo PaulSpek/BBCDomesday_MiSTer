@@ -52,13 +52,14 @@ module jpeg_idct_ram_dp
 
 //-----------------------------------------------------------------
 // Dual Port RAM
-// Mode: Read First.  Use an explicit MLAB primitive: Quartus 17 can otherwise
-// expand this small dual-clock RAM into 1024 flip-flops in the full hierarchy.
+// Mode: Read First.  Port 0 is write-only in every caller (data0_o is unused),
+// so express this as a simple dual-port RAM.  This is an MLAB-supported shape;
+// BIDIR_DUAL_PORT forced Quartus 17 to consume M10Ks for every scratch RAM.
 //-----------------------------------------------------------------
 altsyncram ram
 (
-    .clock0(clk0_i), .clock1(clk1_i),
-    .address_a(addr0_i), .data_a(data0_i), .wren_a(wr0_i), .q_a(data0_o),
+    .clock0(clk0_i), .clock1(clk0_i),
+    .address_a(addr0_i), .data_a(data0_i), .wren_a(wr0_i), .q_a(),
     .address_b(addr1_i), .data_b(16'd0), .wren_b(1'b0), .q_b(data1_o),
     .aclr0(1'b0), .aclr1(1'b0),
     .addressstall_a(1'b0), .addressstall_b(1'b0),
@@ -67,7 +68,7 @@ altsyncram ram
     .eccstatus(), .rden_a(1'b1), .rden_b(1'b1)
 );
 defparam
-    ram.operation_mode = "BIDIR_DUAL_PORT",
+    ram.operation_mode = "DUAL_PORT",
     ram.width_a = 16, ram.widthad_a = 6, ram.numwords_a = 64,
     ram.width_b = 16, ram.widthad_b = 6, ram.numwords_b = 64,
     ram.address_reg_b = "CLOCK1",

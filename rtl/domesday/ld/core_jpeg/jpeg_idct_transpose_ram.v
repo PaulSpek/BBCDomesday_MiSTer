@@ -52,13 +52,13 @@ module jpeg_idct_transpose_ram
 
 //-----------------------------------------------------------------
 // Dual Port RAM
-// Mode: Read First.  Explicit MLAB mapping avoids a large register fallback
-// when this dual-clock scratch RAM is instantiated below the BBC hierarchy.
+// Mode: Read First.  Port 0 is write-only in every caller; use the
+// MLAB-supported simple dual-port form rather than BIDIR_DUAL_PORT.
 //-----------------------------------------------------------------
 altsyncram ram
 (
-    .clock0(clk0_i), .clock1(clk1_i),
-    .address_a(addr0_i), .data_a(data0_i), .wren_a(wr0_i), .q_a(data0_o),
+    .clock0(clk0_i), .clock1(clk0_i),
+    .address_a(addr0_i), .data_a(data0_i), .wren_a(wr0_i), .q_a(),
     .address_b(addr1_i), .data_b(32'd0), .wren_b(1'b0), .q_b(data1_o),
     .aclr0(1'b0), .aclr1(1'b0),
     .addressstall_a(1'b0), .addressstall_b(1'b0),
@@ -67,7 +67,7 @@ altsyncram ram
     .eccstatus(), .rden_a(1'b1), .rden_b(1'b1)
 );
 defparam
-    ram.operation_mode = "BIDIR_DUAL_PORT",
+    ram.operation_mode = "DUAL_PORT",
     ram.width_a = 32, ram.widthad_a = 5, ram.numwords_a = 32,
     ram.width_b = 32, ram.widthad_b = 5, ram.numwords_b = 32,
     ram.address_reg_b = "CLOCK1",

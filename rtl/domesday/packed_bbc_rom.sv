@@ -48,7 +48,7 @@ module packed_bbc_rom
         .wren_a(commit_word), .q_a(read_word), .rden_a(1'b1),
         .clocken0(1'b1), .clocken2(1'b1), .aclr0(1'b0),
         .addressstall_a(1'b0), .byteena_a(1'b1),
-        .clock1(1'b0), .clocken1(1'b1), .clocken3(1'b1), .aclr1(1'b0),
+        .clock1(), .clocken1(1'b1), .clocken3(1'b1), .aclr1(1'b0),
         .wren_b(1'b0), .rden_b(1'b0), .data_b(1'b0), .address_b(1'b0),
         .addressstall_b(1'b0), .byteena_b(1'b1), .q_b(), .eccstatus()
     );

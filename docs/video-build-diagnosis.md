@@ -43,6 +43,16 @@ using DOMESDAY_BEHAVIORAL_ROM select behavioral arrays. Run
 to exercise the actual Altera memory model, including MIF initialization.
 The test runner starts ModelSim in the project root so relative MIF paths work.
 
+Build 20261027-165611-ef619231 exposed Quartus error 272006 because clock1
+was tied to zero on a single-port primitive. Leaving that unused clock open
+corrects elaboration (commit 0bdbd46). The next build,
+20261027-165751-d229cdef, confirms operation_mode=SINGLE_PORT for both ROMs
+in its log. Full resource usage and timing closure remain pending.
+
+The Altera model tests pass for all uploaded bytes and the initial diagnostic
+ROM header, with no errors or warnings before the unused-clock tie correction.
+The open unused clock has no effect on the single-port functional model.
+
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all
 262,144 bytes with gaps, including the final partial word. Cartridge simulation

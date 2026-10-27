@@ -18,7 +18,7 @@ module sideways_rom_bank (
     localparam integer WORDS_PER_SLOT = 3277;
     localparam integer TOTAL_WORDS = 4 * WORDS_PER_SLOT;
 
-`ifndef SYNTHESIS
+`ifdef DOMESDAY_BEHAVIORAL_ROM
     (* ramstyle = "M10K, no_rw_check", ram_init_file = "roms/cartridge_roms_packed.mif" *)
     reg [39:0] memory [0:TOTAL_WORDS-1];
 `endif
@@ -32,7 +32,7 @@ module sideways_rom_bank (
     wire [11:0] read_local_group = read_addr / 14'd5;
     wire  [2:0] read_lane = read_addr % 14'd5;
     wire [13:0] read_group = read_slot * WORDS_PER_SLOT + read_local_group;
-`ifdef SYNTHESIS
+`ifndef DOMESDAY_BEHAVIORAL_ROM
     wire [39:0] read_word;
 `else
     reg  [39:0] read_word = 40'd0;
@@ -57,12 +57,15 @@ module sideways_rom_bank (
     wire [39:0] memory_data = tail ? {8'd0, write_data, upload_prefix[23:0]} :
                                                    {write_data, upload_prefix};
 
-`ifdef SYNTHESIS
+`ifndef DOMESDAY_BEHAVIORAL_ROM
     altsyncram memory (
         .clock0(clk), .address_a(memory_address), .data_a(memory_data),
         .wren_a(commit_word), .q_a(read_word), .rden_a(1'b1),
         .clocken0(1'b1), .clocken2(1'b1), .aclr0(1'b0),
-        .addressstall_a(1'b0), .byteena_a(1'b1)
+        .addressstall_a(1'b0), .byteena_a(1'b1),
+        .clock1(1'b0), .clocken1(1'b1), .clocken3(1'b1), .aclr1(1'b0),
+        .wren_b(1'b0), .rden_b(1'b0), .data_b(1'b0), .address_b(1'b0),
+        .addressstall_b(1'b0), .byteena_b(1'b1), .q_b(), .eccstatus()
     );
     defparam memory.operation_mode = "SINGLE_PORT",
         memory.width_a = 40, memory.widthad_a = 14, memory.numwords_a = TOTAL_WORDS,

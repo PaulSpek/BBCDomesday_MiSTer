@@ -11,6 +11,7 @@ pre-placement reports, not completed fits or verified timing closure.
 | 185350-e7d9b38e | 7725209 | Previous fitter report was reused in the initial diagnosis | Must not infer current resource usage from an older report |
 | 193407-19884473 | 5767e65 | 609/553 | IDCT scratch RAMs now map to MLAB; memory still exceeded |
 | 195310-40943063 | 7e6904a | 607/553 | 32-bit ROM packing; 24,219 ALMs (58%); memory still exceeded |
+| 201233-2067d2bb | db6069a | ROMs still 260+80 | Quartus 17 did not define SYNTHESIS; behavioral branch was synthesized |
 
 The former claim that logic was exactly at its capacity was incorrect: a
 failed-fit summary capped one field at device capacity. The latest report
@@ -31,6 +32,16 @@ The 20:07 build still inferred DUAL_PORT despite the shared address, so it
 was stopped during synthesis. The hardware implementation now explicitly
 instantiates altsyncram with operation_mode=SINGLE_PORT. Behavioral simulation
 uses the corresponding single-address array; read data during upload is unused.
+
+### 27 October: synthesis-branch correction
+
+The latest report still names inferred memory_rtl_0 instances, proving the
+explicit primitives were not selected. Quartus 17 does not define SYNTHESIS
+in this project. Hardware primitives are now the default branch. Only tests
+using DOMESDAY_BEHAVIORAL_ROM select behavioral arrays. Run
+`powershell -ExecutionPolicy Bypass -File tools/test_rom_slots.ps1 -Hardware`
+to exercise the actual Altera memory model, including MIF initialization.
+The test runner starts ModelSim in the project root so relative MIF paths work.
 
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all

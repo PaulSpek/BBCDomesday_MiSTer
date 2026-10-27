@@ -55,6 +55,13 @@ module tb_sideways_rom_bank;
             select_slot(slot);
             if (valid !== (slot == 1)) $fatal(1,"initial validity slot %0d",slot);
         end
+`ifndef DOMESDAY_BEHAVIORAL_ROM
+        // Check the actual Altera MIF loader before replacing the ROM image.
+        select_slot(1); read_addr=0; @(negedge clk);
+        if (read_data !== 8'h4C) $fatal(1,"diagnostic ROM initial header");
+        read_addr=5; @(negedge clk);
+        if (read_data !== 8'h80) $fatal(1,"diagnostic ROM packed word boundary");
+`endif
         // Slot 3 fallback must survive until a replacement is loaded.
         select_slot(3);
         for (model=0; model<2; model=model+1)

@@ -15,14 +15,14 @@ module packed_bbc_rom
 );
     localparam integer WORDS = 52429; // ceil(256 KiB / 5)
 
-`ifndef SYNTHESIS
+`ifdef DOMESDAY_BEHAVIORAL_ROM
     (* ramstyle = "M10K, no_rw_check", ram_init_file = "roms/rom_packed.mif" *)
     reg [39:0] memory [0:WORDS-1];
 `endif
 
     wire [15:0] read_group = read_addr / 18'd5;
     wire  [2:0] read_lane  = read_addr % 18'd5;
-`ifdef SYNTHESIS
+`ifndef DOMESDAY_BEHAVIORAL_ROM
     wire [39:0] read_word;
 `else
     reg  [39:0] read_word = 40'd0;
@@ -40,14 +40,17 @@ module packed_bbc_rom
 
     assign read_data = read_word[{read_lane_q, 3'b000} +: 8];
 
-`ifdef SYNTHESIS
+`ifndef DOMESDAY_BEHAVIORAL_ROM
     // Quartus 17 keeps inferred arrays in DUAL_PORT even with a shared
     // address. Force the physical mode so the 40-bit M10K geometry is used.
     altsyncram memory (
         .clock0(clk), .address_a(memory_address), .data_a(memory_data),
         .wren_a(commit_word), .q_a(read_word), .rden_a(1'b1),
         .clocken0(1'b1), .clocken2(1'b1), .aclr0(1'b0),
-        .addressstall_a(1'b0), .byteena_a(1'b1)
+        .addressstall_a(1'b0), .byteena_a(1'b1),
+        .clock1(1'b0), .clocken1(1'b1), .clocken3(1'b1), .aclr1(1'b0),
+        .wren_b(1'b0), .rden_b(1'b0), .data_b(1'b0), .address_b(1'b0),
+        .addressstall_b(1'b0), .byteena_b(1'b1), .q_b(), .eccstatus()
     );
     defparam memory.operation_mode = "SINGLE_PORT",
         memory.width_a = 40, memory.widthad_a = 16, memory.numwords_a = WORDS,

@@ -275,7 +275,7 @@ parameter CONF_STR = {
 	"h1S2,SSDDSD;",
 	"S3,DDV,Mount Domesday LaserDisc cache;",
 	"S4,DAT,Mount Domesday LV-ROM volume;",
-	"P1,Cartridge ROMs;",
+	"P1,Sideways ROMs;",
 	"P1F5,ROM,Load ROM slot 0;",
 	"P1F6,ROM,Load ROM slot 1;",
 	"P1F7,ROM,Load ROM slot 2;",

@@ -187,6 +187,78 @@ scanline addressing by holding shown high and DDR busy; it does not verify
 DDR throughput or decoded image quality. Upstream research is recorded in
 `beebfpga-upstream-review.md`; functional upstream ports remain separate.
 
+Timing-correction build started on STUDEER at 20:51:11, source 79c099f,
+build 20261027-205111-56d22070, worker PID 29840. Both boundary simulations
+pass with zero errors/warnings; physical timing remains pending.
+
+For rollback, also installed `BBCMicro_Domesday_previous.rbf` beside the
+test RBF. It is `build/BBCMicro-cartridges-7c32fd7-local.rbf`, the local
+26 October build whose hash matches the previously recorded deployment:
+`3b9890fbee503efbcd7c7d946d27399e487b777634c7d5f28160856a667752db`.
+This preserves the previous hardware-test baseline; it is not a claim of
+verified timing closure. Both RBFs can be selected from the Computer menu.
+
+Correction: the user reports that this local rollback RBF does not work.
+It was previously deployed, but was NOT the build associated with the
+confirmed SCSITEST pass and subsequent Domesday startup. Do not label the
+local 3b9890fb build known-good. Conversation history identifies the actual
+tested STUDEER build as 20261026-152243-054f1ada, 4,230,912 bytes, SHA-256
+`153f2ae23fffedcd25d26379c02c948b559774cc245204add4db369d1cdea255`.
+The user subsequently reported all SCSI tests passing, then LVFS menu and
+Domesday startup with the BeebVFS1 image. That binary IS preserved locally
+as `build/BBCMicro-cartridges-7c32fd7-studeer.rbf`. Installed with verified
+transfer as `/media/fat/_Computer/BBCMicro_Domesday_verified_20261026.rbf`.
+The local and STUDEER files have different hashes despite the common name;
+identify deployed artifacts by hash and user test result, not source label.
+
+User confirmed the 153f2ae2 STUDEER reference works; the new 395ffd9 RBF
+does not boot correctly. At the user's request, remove only the `previous`
+and `test` RBF names. Keep `BBCMicro_Domesday_verified_20261026.rbf`.
+Future deployed builds use trailing sequence numbers, starting with
+`BBCMicro_Domesday_01.rbf`. Parent transfer script now chooses the next
+unused number, refuses to overwrite numbered builds, and records local
+path/hash/verification in `build/mister-deployments.jsonl`.
+
+### Result: build 20261027-205111-56d22070 (source 79c099f)
+
+Completed 27 October at 21:22:48, exit 0, elapsed 31m35s. Fresh RBF:
+4,209,468 bytes, timestamp 21:22:29. Fit: 26,131 ALMs (62%), 546/553 RAM
+blocks, 72/112 DSPs. Hold now passes on all reported clocks (core +0.356 ns;
+global worst +0.252 ns). Setup still fails at -6.227 ns, TNS -5471.498 ns.
+
+A fresh read-only timing inspection identifies scsi_bus addr_q[0] to
+aiv_scsi data_reg[4] as the worst setup path: data delay 9.863 ns, skew
+-6.451 ns. The boundary register remains on the physically delayed gated
+48 MHz clock; its output still feeds a long 96 MHz adapter path. Next
+inspect retiming the captured bus into parent-clock registers and validating
+the exact CPU read/ack ordering with the existing real-CPU regression.
+The keyboard hold fix succeeded; compiler success is still not timing
+closure. This build has not been deployed or assigned version _01.
+
+### Version 01 and next SCSI boundary correction
+
+At the user's explicit request, deployed the 79c099f RBF despite the remaining
+setup failure as `BBCMicro_Domesday_01.rbf`. Verified SHA-256:
+`11a492b51dcc059c49d30234143e1ebaed117018ceba929784557824e2f2953f`.
+The separately named, user-confirmed 26 October reference remains available.
+
+Next correction: clock scsi_bus directly at 96 MHz with ce_48 as a capture
+enable, rather than clocking it from the physically delayed gated clock.
+The tuple is sampled before the BBC clock advances the CPU; the adapter
+still consumes the previous captured tuple on the following ce_48 edge.
+The register-to-adapter path now launches from the same parent clock as its
+destination. The existing two-cycle constraint into the capture bank reflects
+its capture enable; no extra timing relaxation is added. Keep CPU read-before-
+ack ordering and duplicate-write regression coverage. Extend the real-CPU
+tests to four phases with both zero and 6.5 ns gated-clock insertion delay.
+Simulation is not a substitute for the next placed timing report.
+
+Validation: all eight real-CPU/diagnostic-ROM cases pass (phases 0/1/7/15,
+each at zero and 6.5 ns insertion delay), 290 accepted writes and 256-byte
+TX/RX in every case. Legacy double-write failure still reproduces. The clock
+test uses transport-delayed edges: a delayed continuous assignment would
+filter out the narrow gated pulse instead of modelling insertion delay.
+
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all
 262,144 bytes with gaps, including the final partial word. Cartridge simulation

@@ -5,11 +5,16 @@
 module tb_aiv_scsi_cpu;
     parameter LEGACY_STROBE = 0;
     parameter INITIAL_PHASE = 0;
+    parameter CLOCK_DELAY_PS = 0;
     reg clk = 0;
     always #5 clk = ~clk; // 96:48 ratio; time scaled by 0.96
     reg ce48 = 0;
     always @(negedge clk) ce48 <= ~ce48;
-    wire clk48 = clk & ce48;
+    wire clk48_raw = clk & ce48;
+    reg clk48 = 0;
+    // Transport both edges: a delayed continuous assignment would suppress
+    // the narrow gated-clock pulse when insertion delay exceeds pulse width.
+    always @(clk48_raw) clk48 <= #(CLOCK_DELAY_PS / 1000.0) clk48_raw;
     reg reset_n = 0;
     wire [15:0] cpu_a;
     wire [7:0] cpu_do;
@@ -21,7 +26,7 @@ module tb_aiv_scsi_cpu;
     wire [1:0] addr_q;
     wire [7:0] din_q;
     aiv_scsi_bus_register scsi_bus (
-        .clk(clk48), .reset(!reset_n), .cs(cs), .strobe(cs && cpu_en),
+        .clk(clk), .reset(!reset_n), .enable(ce48), .cs(cs), .strobe(cs && cpu_en),
         .rnw(cpu_rnw), .addr(cpu_a[1:0]), .din(cpu_do),
         .cs_q(cs_q), .strobe_q(strobe_q), .rnw_q(rnw_q),
         .addr_q(addr_q), .din_q(din_q)

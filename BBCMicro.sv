@@ -565,7 +565,7 @@ wire scsi_cs_q, scsi_strobe_q, scsi_rnw_q;
 wire [1:0] scsi_addr_q;
 wire [7:0] scsi_din_q;
 aiv_scsi_bus_register scsi_bus (
-    .clk(clk_48), .reset(reset | aiv_scsi_reset),
+    .clk(clk_sys), .reset(reset | aiv_scsi_reset), .enable(ce_48),
     .cs(aiv_scsi_cs), .strobe(aiv_scsi_strobe), .rnw(aiv_scsi_rnw),
     .addr(aiv_scsi_addr), .din(aiv_scsi_din),
     .cs_q(scsi_cs_q), .strobe_q(scsi_strobe_q), .rnw_q(scsi_rnw_q),

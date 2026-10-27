@@ -5,8 +5,8 @@ derive_clock_uncertainty
 set_multicycle_path -to {emu|BBCMicro|*} -setup 2
 set_multicycle_path -to {emu|BBCMicro|*} -hold 1
 
-# These boundary registers use the same 48 MHz clock as the BBC. Like the
-# BBC registers above, they capture once per TWO 96 MHz parent cycles. Keep
+# These parent-clock boundary registers capture only when ce_48 is high.
+# Like the BBC registers above, they capture once per TWO parent cycles. Keep
 # the exception restricted to that bank; the SCSI engine remains at 96 MHz.
 set_multicycle_path -to {emu|scsi_bus|*} -setup 2
 set_multicycle_path -to {emu|scsi_bus|*} -hold 1

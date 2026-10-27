@@ -25,7 +25,11 @@ try {
         @{ Arguments = @('-gINITIAL_PHASE=0'); Marker = 'PASS tb_aiv_scsi_cpu phase=0' },
         @{ Arguments = @('-gINITIAL_PHASE=1'); Marker = 'PASS tb_aiv_scsi_cpu phase=1' },
         @{ Arguments = @('-gINITIAL_PHASE=7'); Marker = 'PASS tb_aiv_scsi_cpu phase=7' },
-        @{ Arguments = @('-gINITIAL_PHASE=15'); Marker = 'PASS tb_aiv_scsi_cpu phase=15' }
+        @{ Arguments = @('-gINITIAL_PHASE=15'); Marker = 'PASS tb_aiv_scsi_cpu phase=15' },
+        @{ Arguments = @('-gINITIAL_PHASE=0', '-gCLOCK_DELAY_PS=6500'); Marker = 'PASS tb_aiv_scsi_cpu phase=0' },
+        @{ Arguments = @('-gINITIAL_PHASE=1', '-gCLOCK_DELAY_PS=6500'); Marker = 'PASS tb_aiv_scsi_cpu phase=1' },
+        @{ Arguments = @('-gINITIAL_PHASE=7', '-gCLOCK_DELAY_PS=6500'); Marker = 'PASS tb_aiv_scsi_cpu phase=7' },
+        @{ Arguments = @('-gINITIAL_PHASE=15', '-gCLOCK_DELAY_PS=6500'); Marker = 'PASS tb_aiv_scsi_cpu phase=15' }
     )
     $caseIndex = 0
     foreach ($case in $cases) {

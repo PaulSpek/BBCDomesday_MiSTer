@@ -75,6 +75,36 @@ resources constant predicts 539/553 for the full core. The probe has no
 board-level timing constraints; it validates storage implementation and
 placement only, not the full core's timing closure.
 
+## Full build 20261027-180055-09a7fef1
+
+Completed successfully at 18:42:36, exit code 0, fresh 4,254,340-byte RBF.
+Actual full-core usage: 544/553 M10Ks and 26,166/41,910 ALMs (62%). The
+memory-capacity problem is resolved. Do not treat compiler success as timing
+closure: worst setup slack is -31.630 ns; worst hold slack is +0.076 ns.
+
+### Critical-path diagnosis and pipeline correction
+
+`quartus_sta -t tools/report_critical_timing.tcl` extracts the detailed paths
+from the fitted database into `.remote-build/critical-setup.rpt`.
+Worst path: BBCMicro ext_A[14] -> built-in ROM address register, through
+the inferred division-by-five circuit. Data delay 34.100 ns, 32 logic levels,
+10.417 ns clock period; gated-source clock skew adds -7.617 ns.
+
+Replace combinational /5 and %5 with two address pipeline stages: capture
+the address, then register the product with ceil(2^20/5)=209716. Its high bits
+give the exact quotient for every 18-bit address. Compute the three-bit
+remainder from aligned low address/quotient bits. The M10K read is the third
+stage. Cartridge slot base travels through matching stages. Built-in uploads
+use group/lane counters and restart only on byte address zero.
+
+The BBC bus scheduler (`rtl/bbc_micro_core.vhd`, CPU memory latch and ext_A
+processes) holds the selected CPU address over a multi-tick memory cycle.
+The new fixed read latency is three 96MHz cycles (~31.25 ns), rather than one.
+Tests check all 262,144 quotient/remainder pairs with an address every cycle,
+all built-in ROM bytes with gapped uploads, all cartridge slots in both models,
+and Altera MIF initialization. Timing closure still requires a new full fit;
+no timing exceptions have been added to hide the critical path.
+
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all
 262,144 bytes with gaps, including the final partial word. Cartridge simulation

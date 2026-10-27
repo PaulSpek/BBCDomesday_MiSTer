@@ -20,8 +20,12 @@ module packed_bbc_rom
     reg [39:0] memory [0:WORDS-1];
 `endif
 
-    wire [15:0] read_group = read_addr / 18'd5;
-    wire  [2:0] read_lane  = read_addr % 18'd5;
+    // Two address stages plus the M10K read: three clk cycles total.
+    wire [15:0] read_group;
+    wire  [2:0] read_lane;
+    packed_rom_address #(.WIDTH(18)) read_address (
+        .clk(clk), .address(read_addr), .word_address(read_group), .byte_lane(read_lane)
+    );
 `ifndef DOMESDAY_BEHAVIORAL_ROM
     wire [39:0] read_word;
 `else
@@ -30,10 +34,12 @@ module packed_bbc_rom
     reg   [2:0] read_lane_q = 3'd0;
 
     reg  [31:0] upload_prefix = 32'd0;
-    wire [15:0] write_group = write_addr / 18'd5;
-    wire [2:0] write_lane = write_addr % 18'd5;
+    // Upload bytes are sequential; counters avoid a second divider on the
+    // HPS write path. Only address zero restarts a transfer, never a gap.
+    reg [15:0] write_group = 0;
+    reg [2:0] write_lane = 0;
     wire tail = write_addr == 18'd262143;
-    wire commit_word = write_enable && (write_lane == 3'd4 || tail);
+    wire commit_word = write_enable && write_addr != 0 && (write_lane == 3'd4 || tail);
     wire [15:0] memory_address = commit_word ? write_group : read_group;
     wire [39:0] memory_data = tail ? {8'd0, write_data, upload_prefix[23:0]} :
                                                    {write_data, upload_prefix};
@@ -70,7 +76,18 @@ module packed_bbc_rom
 `endif
     always @(posedge clk) begin
         read_lane_q <= read_lane;
-        if (write_enable && write_lane < 3'd4)
-            upload_prefix[{write_lane, 3'b000} +: 8] <= write_data;
+        if (write_enable) begin
+            if (write_addr == 0) begin
+                write_group <= 0;
+                write_lane <= 1;
+                upload_prefix[7:0] <= write_data;
+            end else if (commit_word) begin
+                write_group <= write_group + 1'b1;
+                write_lane <= 0;
+            end else begin
+                upload_prefix[{write_lane, 3'b000} +: 8] <= write_data;
+                write_lane <= write_lane + 1'b1;
+            end
+        end
     end
 endmodule

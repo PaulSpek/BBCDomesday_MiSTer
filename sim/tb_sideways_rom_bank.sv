@@ -26,7 +26,7 @@ module tb_sideways_rom_bank;
         begin
             read_slot = s;
             mux_slot = s;
-            @(negedge clk);
+            repeat (3) @(negedge clk);
         end
     endtask
     task automatic send(input integer a, input [7:0] d);
@@ -57,9 +57,9 @@ module tb_sideways_rom_bank;
         end
 `ifndef DOMESDAY_BEHAVIORAL_ROM
         // Check the actual Altera MIF loader before replacing the ROM image.
-        select_slot(1); read_addr=0; @(negedge clk);
+        select_slot(1); read_addr=0; repeat (3) @(negedge clk);
         if (read_data !== 8'h4C) $fatal(1,"diagnostic ROM initial header");
-        read_addr=5; @(negedge clk);
+        read_addr=5; repeat (3) @(negedge clk);
         if (read_data !== 8'h80) $fatal(1,"diagnostic ROM packed word boundary");
 `endif
         // Slot 3 fallback must survive until a replacement is loaded.
@@ -84,7 +84,7 @@ module tb_sideways_rom_bank;
                 select_slot(slot);
                 if (!valid) $fatal(1,"slot %0d missing",slot);
                 for (address=0; address<16384; address=address+1) begin
-                    read_addr=address; @(negedge clk);
+                    read_addr=address; repeat (3) @(negedge clk);
                     if (routed_data !== pattern(slot,address))
                         $fatal(1,"model %0d slot %0d address %0d got %02x",model,slot,address,routed_data);
                 end

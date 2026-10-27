@@ -9,11 +9,11 @@ try {
     }
     $defines = @()
     if (-not $Hardware) { $defines += '+define+DOMESDAY_BEHAVIORAL_ROM' }
-    & (Join-Path $ModelSim 'vlog.exe') -sv @defines ../rtl/domesday/sideways_rom_bank.sv ../rtl/domesday/packed_bbc_rom.sv tb_sideways_rom_bank.sv tb_packed_bbc_rom.sv
+    & (Join-Path $ModelSim 'vlog.exe') -sv @defines ../rtl/domesday/packed_rom_address.sv ../rtl/domesday/sideways_rom_bank.sv ../rtl/domesday/packed_bbc_rom.sv tb_sideways_rom_bank.sv tb_packed_bbc_rom.sv tb_packed_rom_address.sv
     if ($LASTEXITCODE -ne 0) { throw 'ROM-loader compilation failed' }
     $workPath = (Resolve-Path work).Path
     Set-Location ..
-    foreach ($top in 'tb_sideways_rom_bank','tb_packed_bbc_rom') {
+    foreach ($top in 'tb_packed_rom_address','tb_sideways_rom_bank','tb_packed_bbc_rom') {
         $output = & (Join-Path $ModelSim 'vsim.exe') -c -lib $workPath -L altera_mf_ver $top -do 'run -all; quit -f' 2>&1
         $code = $LASTEXITCODE
         $output | Write-Output

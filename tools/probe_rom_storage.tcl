@@ -11,6 +11,7 @@ set_global_assignment -name DEVICE 5CSEBA6U23I7
 set_global_assignment -name TOP_LEVEL_ENTITY rom_storage_probe
 set_global_assignment -name NUM_PARALLEL_PROCESSORS 1
 set_global_assignment -name SEARCH_PATH $repo
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $repo rtl/domesday/packed_rom_address.sv]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $repo rtl/domesday/packed_bbc_rom.sv]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $repo rtl/domesday/sideways_rom_bank.sv]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $repo sim/rom_storage_probe.sv]

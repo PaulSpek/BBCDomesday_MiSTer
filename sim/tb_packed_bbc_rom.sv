@@ -21,7 +21,7 @@ module tb_packed_bbc_rom;
             repeat ((address % 3) + 1) @(negedge clk);
         end
         for (address=0; address<262144; address=address+1) begin
-            read_addr=address; @(negedge clk);
+            read_addr=address; repeat (3) @(negedge clk);
             if (read_data !== pattern(address))
                 $fatal(1,"ROM address %h got %h expected %h",address,read_data,pattern(address));
         end

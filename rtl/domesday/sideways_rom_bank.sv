@@ -29,9 +29,22 @@ module sideways_rom_bank (
     assign loading = download && selected;
     assign valid = valid_slots[read_slot];
 
-    wire [11:0] read_local_group = read_addr / 14'd5;
-    wire  [2:0] read_lane = read_addr % 14'd5;
-    wire [13:0] read_group = read_slot * WORDS_PER_SLOT + read_local_group;
+    wire [11:0] read_local_group;
+    wire  [2:0] read_lane;
+    packed_rom_address #(.WIDTH(14)) read_address (
+        .clk(clk), .address(read_addr), .word_address(read_local_group), .byte_lane(read_lane)
+    );
+    reg [13:0] slot_base_q = 0, slot_base_qq = 0;
+    always @(posedge clk) begin
+        case (read_slot)
+            0: slot_base_q <= 0;
+            1: slot_base_q <= WORDS_PER_SLOT;
+            2: slot_base_q <= 2 * WORDS_PER_SLOT;
+            3: slot_base_q <= 3 * WORDS_PER_SLOT;
+        endcase
+        slot_base_qq <= slot_base_q;
+    end
+    wire [13:0] read_group = slot_base_qq + read_local_group;
 `ifndef DOMESDAY_BEHAVIORAL_ROM
     wire [39:0] read_word;
 `else

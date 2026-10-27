@@ -189,8 +189,16 @@ wire vblank_fall = ~bbc_vblank & vblank_d;
 reg [7:0] active_y = 8'd0;
 reg [9:0] active_x = 10'd0;
 
-wire [9:0] source_y_now = 10'd32 + {active_y, 1'b0} + odd_field;
-wire [9:0] source_y_next = 10'd32 + {active_y + 1'b1, 1'b0} + odd_field;
+// CRTC uses a gated 48 MHz clock with appreciable insertion delay relative
+// to this 96 MHz clock. Capture field parity before the long row-address
+// arithmetic. It changes during vertical blank, well before line fetching.
+reg odd_field_q = 1'b0;
+always @(posedge clk) begin
+    if (reset) odd_field_q <= 1'b0;
+    else odd_field_q <= odd_field;
+end
+
+wire [9:0] source_y_next = 10'd32 + {active_y + 1'b1, 1'b0} + odd_field_q;
 
 task automatic start_line_fetch(input [7:0] target_y, input [9:0] source_y);
 begin
@@ -215,7 +223,7 @@ always @(posedge clk) begin
     end else begin
         if (vblank_fall) begin
             active_y <= 8'd0;
-            start_line_fetch(8'd0, 10'd32 + odd_field);
+            start_line_fetch(8'd0, 10'd32 + odd_field_q);
         end else if (hblank_rise && !bbc_vblank && active_y != 8'd255) begin
             active_y <= active_y + 1'b1;
             start_line_fetch(active_y + 1'b1, source_y_next);

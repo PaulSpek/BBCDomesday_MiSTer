@@ -1042,7 +1042,10 @@ begin
 
 
     keyb : entity work.misterkeyboard port map (
-        clock_32, 
+        -- The scan enable and VIA matrix selectors are in the 48 MHz domain.
+        -- Keep the matrix here too: a 32 MHz clock loses enable pulses and
+        -- introduces short hold paths into the 48 MHz VIA input registers.
+        clock_48,
 		hard_reset_n, 
 		mhz1_clken,
         mister_key,

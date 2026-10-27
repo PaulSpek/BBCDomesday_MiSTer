@@ -146,6 +146,47 @@ inport_accept is not a per-coefficient ready signal.
 Physical timing closure and final DSP/memory usage remain pending the next
 full build on STUDEER.
 
+### STUDEER result, 27 October 2026, build 20261027-195844-351cf097
+
+Source 395ffd9 completed successfully at 20:28:59 (exit 0, elapsed 30m15s).
+The new RBF is 4,218,220 bytes, timestamp 20:28:40. Fit uses 26,161/41,910
+ALMs (62%), 4,788,849 block-memory bits (85%) and 72/112 DSP blocks (64%).
+Timing is still failing: setup -5.578 ns, hold -2.338 ns. A separate
+read-only TimeQuest run confirmed the worst paths:
+
+* Setup: BBC CRTC odd_field to domesday_compositor rdaddr2[21], data delay
+  9.260 ns and clock skew -6.405 ns. Next path is the same source to bit 19.
+* Hold: keyboard keys[9][7] to system_via ca2_ip_reg_c, data delay 4.004 ns
+  and clock skew +6.342 ns. Second violation: keys[9][6] to r_ira[7],
+  -1.088 ns slack.
+
+The previous SCSI/JPEG paths are no longer the worst reported paths; this
+does not by itself prove that every path in those blocks passes. Next inspect
+the compositor input boundary and keyboard-to-BBC clock relationship. Do not
+treat compiler success as timing closure. This RBF has not been deployed.
+
+### Next timing correction and test deployment
+
+The user requested a provisional hardware test despite timing violations.
+Transferred the 395ffd9 RBF to `/media/fat/_Computer/BBCMicro_Domesday_test.rbf`
+on 27 October, verifying SHA-256
+`070ac5d3ea14bde0e6442a0f2f90ed1807038e100012ae21dd10f8a11e906677`.
+The running core was not reloaded remotely.
+
+Next source change moves misterkeyboard from clock_32 to clock_48, matching
+its one-cycle mhz1_clken pulse and VIA consumers. This removes the 32/48 MHz
+matrix crossing instead of masking its hold failures. CRTC odd_field is
+captured in the compositor clock domain before the row-address arithmetic;
+field parity changes in vertical blank before the first active-line fetch.
+No new timing exceptions. Full placement/timing verification remains pending.
+
+`tools/test_video_boundary.ps1` tests keyboard make/break, autoscan suppression,
+single-cycle scan enables and BREAK, plus 1,536 actual compositor fetch
+addresses (256 lines, two fields, three buffers). The video test isolates
+scanline addressing by holding shown high and DDR busy; it does not verify
+DDR throughput or decoded image quality. Upstream research is recorded in
+`beebfpga-upstream-review.md`; functional upstream ports remain separate.
+
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all
 262,144 bytes with gaps, including the final partial word. Cartridge simulation

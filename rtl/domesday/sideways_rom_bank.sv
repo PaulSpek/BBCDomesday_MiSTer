@@ -71,6 +71,7 @@ module sideways_rom_bank (
         memory.width_a = 40, memory.widthad_a = 14, memory.numwords_a = TOTAL_WORDS,
         memory.outdata_reg_a = "UNREGISTERED",
         memory.ram_block_type = "M10K",
+        memory.maximum_depth = 256,
         memory.intended_device_family = "Cyclone V",
         memory.init_file = "roms/cartridge_roms_packed.mif",
         memory.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",

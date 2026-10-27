@@ -561,17 +561,26 @@ domesday_vfs_media domesday_vfs
 // interface. It exposes the Pi1MHz-compatible four-register boundary; the
 // command/data engine is deliberately layered behind this synchronous bus
 // interface.
+wire scsi_cs_q, scsi_strobe_q, scsi_rnw_q;
+wire [1:0] scsi_addr_q;
+wire [7:0] scsi_din_q;
+aiv_scsi_bus_register scsi_bus (
+    .clk(clk_48), .reset(reset | aiv_scsi_reset),
+    .cs(aiv_scsi_cs), .strobe(aiv_scsi_strobe), .rnw(aiv_scsi_rnw),
+    .addr(aiv_scsi_addr), .din(aiv_scsi_din),
+    .cs_q(scsi_cs_q), .strobe_q(scsi_strobe_q), .rnw_q(scsi_rnw_q),
+    .addr_q(scsi_addr_q), .din_q(scsi_din_q)
+);
 aiv_scsi_adapter aiv_scsi
 (
 	.clk       (clk_sys),
 	.reset     (reset | aiv_scsi_reset),
-	.cs        (aiv_scsi_cs),
-	// cpu_clken is held for a 48 MHz cycle; accept at its CPU clock edge
-	// exactly once in the 96 MHz adapter clock domain.
-	.strobe    (aiv_scsi_strobe & ce_48),
-	.rnw       (aiv_scsi_rnw),
-	.addr      (aiv_scsi_addr),
-	.din       (aiv_scsi_din),
+	.cs        (scsi_cs_q),
+	// Snapshot strobe lasts one 48 MHz cycle; consume exactly once.
+	.strobe    (scsi_strobe_q & ce_48),
+	.rnw       (scsi_rnw_q),
+	.addr      (scsi_addr_q),
+	.din       (scsi_din_q),
 	.dout      (aiv_scsi_dout),
 	.media_present(domesday_vfs_valid),
 	.media_size(domesday_vfs_size),
@@ -592,7 +601,9 @@ wire reset = RESET | status[0] | buttons[1] | rom_loading |
 ////////////////  MEMORY  /////////////////////////
 
 reg m128 = 0;
-always @(posedge clk_sys) if(reset_req) m128 <= model_master;
+// Configuration changes only during reset. Launch on the opposite edge so
+// the delayed/gated BBC clock does not create a same-edge hold race.
+always @(negedge clk_sys) if(reset_req) m128 <= model_master;
 
 wire        mem_we_n;
 wire [18:0] mem_addr;

@@ -70,8 +70,8 @@ localparam JPEG_YCBCR_444   = 2'd1;
 localparam JPEG_YCBCR_420   = 2'd2;
 localparam JPEG_UNSUPPORTED = 2'd3;
 
-reg valid_r;
-wire output_space_w = (!outport_valid_o || outport_accept_i);
+wire output_space_w;
+reg active_q;
 
 //-----------------------------------------------------------------
 // FIFO: Y
@@ -193,7 +193,7 @@ if (rst_i)
     idx_q <= 6'b0;
 else if (img_start_i)
     idx_q <= 6'b0;
-else if (valid_r && output_space_w)
+else if (active_q && output_space_w)
     idx_q <= idx_q + 6'd1;
 
 //-----------------------------------------------------------------
@@ -206,14 +206,12 @@ if (rst_i)
     subsmpl_q <= 2'b0;
 else if (img_start_i)
     subsmpl_q <= 2'b0;
-else if (valid_r && output_space_w && img_mode_i == JPEG_YCBCR_420 && idx_q == 6'd63)
+else if (active_q && output_space_w && img_mode_i == JPEG_YCBCR_420 && idx_q == 6'd63)
     subsmpl_q <= subsmpl_q + 2'd1;
 
 //-----------------------------------------------------------------
 // YUV -> RGB
 //-----------------------------------------------------------------
-reg active_q;
-
 always @ (posedge clk_i )
 if (rst_i)
     active_q <= 1'b0;
@@ -230,38 +228,8 @@ begin
     else // 420
         active_q <= (y_level_w >= 32'd256) && (cb_level_w >= 32'd256) && (cr_level_w >= 32'd256);
 end
-else if (valid_r && output_space_w && idx_q == 6'd63)
+else if (active_q && output_space_w && idx_q == 6'd63)
     active_q <= 1'b0;
-
-reg signed [31:0] r_conv_r;
-reg signed [31:0] g_conv_r;
-reg signed [31:0] b_conv_r;
-
-wire signed [31:0] cr_1_402_w = (cr_value_w * 5743) >>> 12; // cr_value_w * 1.402
-wire signed [31:0] cr_0_714_w = (cr_value_w * 2925) >>> 12; // cr_value_w * 0.71414
-wire signed [31:0] cb_0_344_w = (cb_value_w * 1410) >>> 12; // cb_value_w * 0.34414
-wire signed [31:0] cb_1_772_w = (cb_value_w * 7258) >>> 12; // cb_value_w * 1.772
-
-always @ *
-begin
-    valid_r  = active_q;
-    r_conv_r = 32'b0;
-    g_conv_r = 32'b0;
-    b_conv_r = 32'b0;
-
-    if (img_mode_i == JPEG_MONOCHROME)
-    begin
-        r_conv_r = 128 + y_value_w;
-        g_conv_r = 128 + y_value_w;
-        b_conv_r = 128 + y_value_w;
-    end
-    else// if (img_mode_i == JPEG_YCBCR_444)
-    begin
-        r_conv_r = 128 + y_value_w + cr_1_402_w;
-        g_conv_r = 128 + y_value_w - cb_0_344_w - cr_0_714_w;
-        b_conv_r = 128 + y_value_w + cb_1_772_w;
-    end
-end
 
 assign y_pop_w  = output_space_w && active_q;
 assign cb_pop_w = output_space_w && active_q;
@@ -271,58 +239,24 @@ assign id_pop_w = output_space_w && (idx_q == 6'd63);
 //-----------------------------------------------------------------
 // Outputs
 //-----------------------------------------------------------------
-reg        valid_q;
-reg [15:0] pixel_x_q;
-reg [15:0] pixel_y_q;
-reg [7:0]  pixel_r_q;
-reg [7:0]  pixel_g_q;
-reg [7:0]  pixel_b_q;
-
-always @ (posedge clk_i )
-if (rst_i)
-    valid_q <= 1'b0;
-else if (output_space_w)
-    valid_q <= valid_r && (id_value_w[31:30] != BLOCK_EOF);
-
 wire [31:0] x_start_w = {13'b0, id_value_w[15:0],3'b0};
 wire [31:0] y_start_w = {15'b0, id_value_w[29:16],3'b0};
-
-always @ (posedge clk_i )
-if (rst_i)
-begin
-    pixel_x_q <= 16'b0;
-    pixel_y_q <= 16'b0;
-end
-else if (output_space_w)
-begin
-    /* verilator lint_off WIDTH */
-    pixel_x_q <= x_start_w + (idx_q % 8);
-    pixel_y_q <= y_start_w + (idx_q / 8);
-    /* verilator lint_on WIDTH */
-end
-
-always @ (posedge clk_i )
-if (rst_i)
-begin
-    pixel_r_q <= 8'b0;
-    pixel_g_q <= 8'b0;
-    pixel_b_q <= 8'b0;
-end
-else if (output_space_w)
-begin
-    pixel_r_q <= (|r_conv_r[31:8]) ? (r_conv_r[31:24] ^ 8'hff) : r_conv_r[7:0];
-    pixel_g_q <= (|g_conv_r[31:8]) ? (g_conv_r[31:24] ^ 8'hff) : g_conv_r[7:0];
-    pixel_b_q <= (|b_conv_r[31:8]) ? (b_conv_r[31:24] ^ 8'hff) : b_conv_r[7:0];
-end
-
-assign outport_valid_o   = valid_q;
-assign outport_pixel_x_o = pixel_x_q;
-assign outport_pixel_y_o = pixel_y_q;
+wire [15:0] pixel_x_w = x_start_w + {13'b0, idx_q[2:0]};
+wire [15:0] pixel_y_w = y_start_w + {13'b0, idx_q[5:3]};
+wire color_busy_w;
+jpeg_color_pipeline color_pipeline (
+    .clk_i(clk_i), .rst_i(rst_i), .flush_i(img_start_i),
+    .in_valid_i(active_q && (id_value_w[31:30] != BLOCK_EOF)),
+    .mono_i(img_mode_i == JPEG_MONOCHROME),
+    .y_i(y_value_w), .cb_i(cb_value_w), .cr_i(cr_value_w),
+    .x_i(pixel_x_w), .y_pos_i(pixel_y_w), .in_accept_o(output_space_w),
+    .out_accept_i(outport_accept_i), .out_valid_o(outport_valid_o),
+    .x_o(outport_pixel_x_o), .y_pos_o(outport_pixel_y_o),
+    .r_o(outport_pixel_r_o), .g_o(outport_pixel_g_o), .b_o(outport_pixel_b_o),
+    .busy_o(color_busy_w)
+);
 assign outport_width_o   = img_width_i;
 assign outport_height_o  = img_height_i;
-assign outport_pixel_r_o = pixel_r_q;
-assign outport_pixel_g_o = pixel_g_q;
-assign outport_pixel_b_o = pixel_b_q;
 
 //-----------------------------------------------------------------
 // Idle
@@ -337,7 +271,7 @@ else if (img_start_i)
 else if (id_valid_w && id_value_w[31:30] == BLOCK_EOF)
     idle_q <= 1'b1;
 
-assign idle_o = idle_q;
+assign idle_o = idle_q && !color_busy_w;
 
 
 endmodule

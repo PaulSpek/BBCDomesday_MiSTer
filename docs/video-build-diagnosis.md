@@ -105,6 +105,47 @@ all built-in ROM bytes with gapped uploads, all cartridge slots in both models,
 and Altera MIF initialization. Timing closure still requires a new full fit;
 no timing exceptions have been added to hide the critical path.
 
+## Full build 20261027-190928-fd6f2260
+
+Source d177c92 completed at 19:39:10 with exit code 0 and a fresh
+4,213,620-byte RBF. Usage 544/553 M10Ks, 25,813 ALMs. Setup slack improved
+to -9.653 ns; hold slack is -0.087 ns. This is not timing closure.
+
+Detailed setup paths now lead from T65 address/control logic into SCSI
+data_reg (13.383 ns data delay, -6.357 ns clock skew) and from JPEG chroma
+RAM through the color conversion into pixel_g_q (18.305 ns data delay).
+The hold path is m128 -> BBC CRTC r14_cursor_h[5], with 6.355 ns skew.
+
+### Corrections
+
+* Register the BBC bus tuple in `aiv_scsi_bus_register` on the BBC's 48 MHz
+  clock. The existing 96 MHz engine consumes the captured strobe once at
+  the following ce_48 edge. The original CPU cycle still reads the previous
+  adapter byte before its acknowledgement. No command protocol changes.
+* The new 48 MHz register bank receives the same two-parent-cycle setup / 
+  one-cycle hold constraint as the existing BBC register bank. The exception
+  is restricted to `emu|scsi_bus|*`; no relaxation is added to the 96 MHz
+  SCSI engine or JPEG pipeline. This represents the actual capture period.
+* Split YCbCr conversion into sample, multiply, partial-sum and clip stages.
+  All stages and coordinates freeze together on output backpressure. Preserve
+  original signed 32-bit rounding/wraparound/clip behavior. Idle waits for
+  every stage to drain, including the final accepted pixel.
+* Capture reset-time model selection m128 on the falling system clock edge,
+  separating it from the delayed/gated BBC rising edge that caused the hold
+  race. The selected model remains constant during normal operation.
+
+Validation: actual Master CPU + diagnostic ROM at initial phases 0/1/7/15
+passes (290 accepted command/data writes, 256 TX and 256 RX payload bytes).
+Legacy duplicate-strobe failure remains reproducible. JPEG standalone test
+compares 3,510 bit-exact pixels with bubbles, long stalls, flushes and overflow
+inputs. Integration through the real Altera Y/Cb/Cr RAM models passes all
+64 monochrome, 64 4:4:4 and 256 4:2:0 pixels, including coordinates and idle
+drain. The test producer reserves a full block, matching the IDCT interface;
+inport_accept is not a per-coefficient ready signal.
+
+Physical timing closure and final DSP/memory usage remain pending the next
+full build on STUDEER.
+
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all
 262,144 bytes with gaps, including the final partial word. Cartridge simulation

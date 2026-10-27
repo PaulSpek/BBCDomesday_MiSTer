@@ -18,7 +18,7 @@ try {
     }
     & (Join-Path $ModelSim 'vcom.exe') -2008 ../rtl/AlanD/R65Cx2.vhd bbc_scsi_cpu_timing.vhd
     if ($LASTEXITCODE -ne 0) { throw 'VHDL compilation failed' }
-    & (Join-Path $ModelSim 'vlog.exe') -sv ../rtl/domesday/aiv_scsi_adapter.sv tb_aiv_scsi_cpu.sv
+    & (Join-Path $ModelSim 'vlog.exe') -sv ../rtl/domesday/aiv_scsi_bus_register.sv ../rtl/domesday/aiv_scsi_adapter.sv tb_aiv_scsi_cpu.sv
     if ($LASTEXITCODE -ne 0) { throw 'SystemVerilog compilation failed' }
     $cases = @(
         @{ Arguments = @('-gLEGACY_STROBE=1'); Marker = 'REPRODUCED legacy:' },

@@ -83,6 +83,7 @@ set_global_assignment -name QIP_FILE sys/sys.qip
 set_global_assignment -name SDC_FILE BBCMicro.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/domesday/domesday_bridge.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/domesday/domesday_vfs_media.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/domesday/aiv_scsi_bus_register.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/domesday/aiv_scsi_adapter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/domesday/packed_rom_address.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/domesday/packed_bbc_rom.sv
@@ -113,6 +114,7 @@ set_global_assignment -name VERILOG_FILE rtl/domesday/ld/core_jpeg/jpeg_mcu_proc
 set_global_assignment -name VERILOG_FILE rtl/domesday/ld/core_jpeg/jpeg_output_cx_ram.v
 set_global_assignment -name VERILOG_FILE rtl/domesday/ld/core_jpeg/jpeg_output_fifo.v
 set_global_assignment -name VERILOG_FILE rtl/domesday/ld/core_jpeg/jpeg_output_y_ram.v
+set_global_assignment -name VERILOG_FILE rtl/domesday/ld/core_jpeg/jpeg_color_pipeline.v
 set_global_assignment -name VERILOG_FILE rtl/domesday/ld/core_jpeg/jpeg_output.v
 set_global_assignment -name SYSTEMVERILOG_FILE BBCMicro.sv
 set_global_assignment -name VHDL_FILE rtl/CoPro6502.vhd

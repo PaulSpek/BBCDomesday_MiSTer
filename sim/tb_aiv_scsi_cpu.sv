@@ -17,7 +17,20 @@ module tb_aiv_scsi_cpu;
     wire [63:0] regs;
     reg [7:0] memory [0:65535];
     wire cs = cpu_a[15:2] == (16'hFC40 >> 2);
-    wire strobe = LEGACY_STROBE ? (cs && bus_en) : (cs && cpu_en && ce48);
+    wire cs_q, strobe_q, rnw_q;
+    wire [1:0] addr_q;
+    wire [7:0] din_q;
+    aiv_scsi_bus_register scsi_bus (
+        .clk(clk48), .reset(!reset_n), .cs(cs), .strobe(cs && cpu_en),
+        .rnw(cpu_rnw), .addr(cpu_a[1:0]), .din(cpu_do),
+        .cs_q(cs_q), .strobe_q(strobe_q), .rnw_q(rnw_q),
+        .addr_q(addr_q), .din_q(din_q)
+    );
+    wire strobe = LEGACY_STROBE ? (cs && bus_en) : (strobe_q && ce48);
+    wire adapter_cs = LEGACY_STROBE ? cs : cs_q;
+    wire adapter_rnw = LEGACY_STROBE ? cpu_rnw : rnw_q;
+    wire [1:0] adapter_addr = LEGACY_STROBE ? cpu_a[1:0] : addr_q;
+    wire [7:0] adapter_din = LEGACY_STROBE ? cpu_do : din_q;
     wire [7:0] dout;
     wire [7:0] cpu_di = !cpu_rnw ? cpu_do : cs ? dout : memory[cpu_a];
     wire media_read;
@@ -34,22 +47,22 @@ module tb_aiv_scsi_cpu;
         .dout(cpu_do), .rnw(cpu_rnw), .cpu_enable(cpu_en),
         .bus_enable(bus_en), .opcode_sync(cpu_sync), .regs(regs));
     aiv_scsi_adapter dut(
-        .clk(clk), .reset(!reset_n), .cs(cs), .strobe(strobe),
-        .rnw(cpu_rnw), .addr(cpu_a[1:0]), .din(cpu_do), .dout(dout),
+        .clk(clk), .reset(!reset_n), .cs(adapter_cs), .strobe(strobe),
+        .rnw(adapter_rnw), .addr(adapter_addr), .din(adapter_din), .dout(dout),
         .media_present(1'b1), .media_size(64'd2359552), .video_present(1'b1),
         .media_read(media_read), .media_lba(media_lba),
         .media_ready(1'b1), .media_addr(media_addr),
         .media_data(media_data), .irq());
 
-    always @(posedge clk) if (reset_n && strobe && !cpu_rnw && cpu_a == 16'hFC40 && dut.req_asserted) begin
+    always @(posedge clk) if (reset_n && strobe && adapter_cs && !adapter_rnw && adapter_addr == 0 && dut.req_asserted) begin
         accepted = accepted + 1;
         if (dut.phase == 7) payload_writes = payload_writes + 1;
         if (dut.phase == 1 && cdb_trace < 40) begin
-            $display("CDB time=%0t accepted=%0d index=%0d byte=%02x CPUwrites=%0d pc=%04x", $time, accepted, dut.cdb_count, cpu_do, cpu_writes, last_pc);
+            $display("CDB time=%0t accepted=%0d index=%0d byte=%02x CPUwrites=%0d pc=%04x", $time, accepted, dut.cdb_count, adapter_din, cpu_writes, last_pc);
             cdb_trace = cdb_trace + 1;
         end
     end
-    always @(posedge clk) if (reset_n && strobe && cpu_rnw && cpu_a == 16'hFC40 && dut.req_asserted && dut.phase == 2 && dut.cdb[0] == 'hC8)
+    always @(posedge clk) if (reset_n && strobe && adapter_cs && adapter_rnw && adapter_addr == 0 && dut.req_asserted && dut.phase == 2 && dut.cdb[0] == 'hC8)
         payload_reads = payload_reads + 1;
     always @(posedge clk48) if (reset_n && cpu_en) begin
         if (LEGACY_STROBE && memory['h7D] == 1 && memory['h74] == 'h22 && regs[15:8] == 3) begin

@@ -9,6 +9,8 @@ update_timing_netlist
 file mkdir .remote-build
 report_timing -setup -npaths 12 -nworst 2 -detail full_path \
     -file .remote-build/critical-setup.rpt
+report_timing -hold -npaths 8 -nworst 1 -detail full_path \
+    -file .remote-build/critical-hold.rpt
 report_clock_fmax_summary -file .remote-build/critical-fmax.rpt
 delete_timing_netlist
 project_close

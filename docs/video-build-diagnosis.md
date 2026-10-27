@@ -12,6 +12,7 @@ pre-placement reports, not completed fits or verified timing closure.
 | 193407-19884473 | 5767e65 | 609/553 | IDCT scratch RAMs now map to MLAB; memory still exceeded |
 | 195310-40943063 | 7e6904a | 607/553 | 32-bit ROM packing; 24,219 ALMs (58%); memory still exceeded |
 | 201233-2067d2bb | db6069a | ROMs still 260+80 | Quartus 17 did not define SYNTHESIS; behavioral branch was synthesized |
+| 20261027-165751-d229cdef | 0bdbd46 | 622/553 | Single-port selected, but ROMs still consume 260+80; placement fails (170040) |
 
 The former claim that logic was exactly at its capacity was incorrect: a
 failed-fit summary capped one field at device capacity. The latest report
@@ -52,6 +53,27 @@ in its log. Full resource usage and timing closure remain pending.
 The Altera model tests pass for all uploaded bytes and the initial diagnostic
 ROM header, with no errors or warnings before the unused-clock tie correction.
 The open unused clock has no effect on the single-port functional model.
+
+### Physical segment depth
+
+The 17:05 fitter report confirms single-port mode, but built-in ROM still
+uses 260 M10Ks and cartridges 80. Logical mode alone does not select the
+256x40 physical configuration. Both primitives now specify maximum_depth=256.
+
+Before another full build, run the isolated two-store project on STUDEER:
+`quartus_sh -t tools/probe_rom_storage.tcl` from the repository root.
+It uses the same device and RTL, performs synthesis and fitting, and stores
+reports under `.remote-build/rom-probe/output_files`. It does not modify the
+BBCMicro project or overwrite its reports. Target combined usage is 257 M10Ks.
+Altera memory-model simulation passes after the segment-depth change.
+
+Isolated probe completed successfully on STUDEER at 17:58 on 27 October,
+source 8bf8943. Fitter measured 205 M10Ks for built-in ROM and 52 for
+cartridges (257 total), and 4,518 ALMs. This proves the depth constraint
+saves 83 M10Ks against the previous full build's 260+80. Holding all other
+resources constant predicts 539/553 for the full core. The probe has no
+board-level timing constraints; it validates storage implementation and
+placement only, not the full core's timing closure.
 
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all

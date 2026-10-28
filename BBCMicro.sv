@@ -703,32 +703,11 @@ reg [7:0] ram_dout;
 	always @(posedge clk_sys) if(mem_addr[18] & mem_addr[17] & old_we & ~mem_we_n) ram[mem_addr[16:0]] <= mem_din;
 	always @(posedge clk_sys) if(mem_addr[17]) ram_dout <= ram[mem_addr[16:0]]; else ram_dout <=0;
 `else
-	// Keep the complete 64 KiB Tube RAM, all four 16 KiB sideways-RAM banks
-	// 4-7 and every Master memory region.  The two OSD-loadable ROM images use
-	// 26 M10Ks, leaving enough block RAM to restore bank 7 alongside the video
-	// decoder. Keep the two address ranges as directly indexed synchronous RAMs.
-	reg [7:0] ram_low[8 * 16384];  // banks 0-7: Tube + SWRAM 4-7
-	reg [7:0] ram_high[5 * 16384]; // banks 8-12: main/shadow/filing RAM
-	reg [7:0] ram_low_dout;
-	reg [7:0] ram_high_dout;
-	always @(posedge clk_sys) begin
-		if(mem_addr[18] && mem_addr[17:14] < 4'd8) begin
-			if(old_we & ~mem_we_n) ram_low[mem_addr[16:0]] <= mem_din;
-			ram_low_dout <= ram_low[mem_addr[16:0]];
-		end
-	end
-	always @(posedge clk_sys) begin
-		if(mem_addr[18] && mem_addr[17:14] > 4'd7 && mem_addr[17:14] <= 4'd12) begin
-			if(old_we & ~mem_we_n) ram_high[mem_addr[16:0]] <= mem_din;
-			ram_high_dout <= ram_high[mem_addr[16:0]];
-		end
-	end
-	always_comb begin
-		if(mem_addr[18] && mem_addr[17:14] < 4'd8) ram_dout = ram_low_dout;
-		else if(mem_addr[18] && mem_addr[17:14] > 4'd7 && mem_addr[17:14] <= 4'd12)
-			ram_dout = ram_high_dout;
-		else ram_dout = 8'd0;
-	end
+	// Separate the 64 KiB Tube store from sideways RAM banks 4-7.
+	bbc_external_ram external_ram (
+		.clk(clk_sys), .address(mem_addr), .data_in(mem_din),
+		.write_pulse(old_we & ~mem_we_n), .data_out(ram_dout)
+	);
 `endif
 
 

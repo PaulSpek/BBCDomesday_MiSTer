@@ -420,3 +420,29 @@ release candidate. Setup is -3.133 ns with TNS -1551.134 ns. Hold now passes
 at +0.244 ns, improving on diagnostic version 03's -0.668 ns hold failure.
 The immediate hardware test is whether `!BOOT` passes its sideways-RAM check;
 retain the known-good 26 October RBF for rollback.
+
+### Version 04 Tube regression and next isolation build
+
+User hardware test of `BBCMicro_Domesday_04.rbf` shows corrupted startup
+text and a Tube fatal-error display. The user confirms no visible issues
+with the coprocessor disabled. The photograph's register fields are partly
+corrupted, so do not treat the previous chat interpretation of PC &0225 as
+a reliable decoded crash address. Root cause remains unproven: shared-memory
+latency, Tube transfers and physical timing all remain candidates.
+
+The next diagnostic revision separates the former 128 KiB `ram_low` into
+dedicated 64 KiB Tube and 64 KiB sideways stores, retaining the 80 KiB
+host/video store. All four sideways banks 4–7 remain present. Read latency,
+rising-edge clocks and the existing write-pulse detector are unchanged.
+The ext_A multicycle endpoints are updated to the three new memory arrays;
+no extra timing allowance is added. Verify the exceptions match after fit.
+Expected total remains 536 M10Ks. This change isolates storage/placement;
+it is not yet a confirmed fix for the Tube failure.
+
+`tools/test_external_ram.ps1` passes with zero ModelSim errors or warnings.
+It writes every byte of all thirteen physical RAM banks, then interleaves
+readback across Tube, sideways and host/video banks to detect aliasing and
+read-latency errors. It also rejects unallocated/ROM writes. This is a
+functional memory test, not a complete Tube firmware or post-route timing
+simulation. Hardware must retest startup with copro enabled, BASIC execution,
+then the Domesday boot. The next deployment number is 05.

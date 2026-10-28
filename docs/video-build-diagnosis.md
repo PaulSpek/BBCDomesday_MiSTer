@@ -404,3 +404,19 @@ with Quartus internal error 272006. The store had been reduced to 6,554 words
 and its signals to 13 address bits, but the explicit `altsyncram.widthad_a`
 parameter still specified 14. Align the port and parameter at 13 bits; the
 hardware-model simulation passes again before retrying Quartus.
+
+### Sideways-RAM restoration build (source 56dd934)
+
+Build `20261028-122914-5228a2a5` completed successfully on 28 October at
+13:01. The RBF is 4,214,984 bytes with SHA-256
+`b5bff82edc586b91cf1b1ba5ac41ac67cf8c73cb030465e68c2719299243b144`.
+The fit confirms the resource estimate exactly: 536/553 RAM blocks (97%),
+26,338 ALMs (63%) and 71/112 DSP blocks. `ram_low` is once again 131,072
+bytes/128 M10Ks, covering Tube RAM and writable sideways banks 4–7. The
+two-image OSD ROM store is 6,554 x 40 bits/26 M10Ks.
+
+Timing remains open, so this is a diagnostic hardware build rather than a
+release candidate. Setup is -3.133 ns with TNS -1551.134 ns. Hold now passes
+at +0.244 ns, improving on diagnostic version 03's -0.668 ns hold failure.
+The immediate hardware test is whether `!BOOT` passes its sideways-RAM check;
+retain the known-good 26 October RBF for rollback.

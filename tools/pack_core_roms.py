@@ -92,7 +92,7 @@ def main() -> None:
     builtin = parse_byte_mif(ROMS / "rom.mif", ROM_BYTES)
     write_packed_mif(ROMS / "rom_packed.mif", builtin)
 
-    cartridges = bytearray(4 * SLOT_BYTES)
+    cartridges = bytearray(2 * SLOT_BYTES)
     cartridges[SLOT_BYTES:2 * SLOT_BYTES] = parse_packed_mif(
         ROMS / "scsi_diag.mif", SLOT_BYTES
     )

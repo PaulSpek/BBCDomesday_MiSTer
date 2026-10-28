@@ -62,7 +62,10 @@ module tb_sideways_rom_bank;
         read_addr=5; repeat (3) @(negedge clk);
         if (read_data !== 8'h80) $fatal(1,"diagnostic ROM packed word boundary");
 `endif
-        // Slot 3 fallback must survive until a replacement is loaded.
+        // Slots 2 and 3 have no upload storage. Slot 2 remains empty and slot
+        // 3 always follows the built-in filing-system selection.
+        select_slot(2);
+        if (valid || routed_data !== 8'h00) $fatal(1,"slot 2 must remain empty");
         select_slot(3);
         for (model=0; model<2; model=model+1)
             for (options=0; options<4; options=options+1) begin
@@ -70,9 +73,9 @@ module tb_sideways_rom_bank;
                 if (routed_data !== ((master ? mmfs : dfs) ? 8'hA9 : 8'h00))
                     $fatal(1,"slot 3 built-in fallback");
             end
-        // Distinct images in all slots; check every byte and every word lane
-        // including the 4-byte tail, then route each image in both models.
-        for (slot=0; slot<4; slot=slot+1) begin
+        // Distinct images in both loadable slots; check every byte and every
+        // word lane including the 4-byte tail, then route in both models.
+        for (slot=0; slot<2; slot=slot+1) begin
             begin_load(slot);
             for (address=0; address<16384; address=address+1)
                 send(address, pattern(slot,address));
@@ -80,7 +83,7 @@ module tb_sideways_rom_bank;
         end
         for (model=0; model<2; model=model+1) begin
             master = model; dfs=0; mmfs=0;
-            for (slot=0; slot<4; slot=slot+1) begin
+            for (slot=0; slot<2; slot=slot+1) begin
                 select_slot(slot);
                 if (!valid) $fatal(1,"slot %0d missing",slot);
                 for (address=0; address<16384; address=address+1) begin
@@ -90,8 +93,13 @@ module tb_sideways_rom_bank;
                 end
             end
         end
-        // Interrupted upload must hide only its target slot; slot 3 resumes
-        // the built-in ROM when the new image is invalid.
+        // Removed file indices must not claim a download or reset the CPU.
+        for (slot=2; slot<4; slot=slot+1) begin
+            file_index=5+slot; download=1; @(negedge clk);
+            if (loading) $fatal(1,"removed slot %0d still accepts upload",slot);
+            download=0; @(negedge clk);
+        end
+        // Interrupted upload must hide only its target slot.
         // Verify every non-cartridge physical ROM bank still follows the
         // original model/Filesystem routing after factoring out the mux.
         for (model=0; model<2; model=model+1)
@@ -105,19 +113,16 @@ module tb_sideways_rom_bank;
                             $fatal(1,"built-in filesystem routing model %0d slot %0d",model,slot);
                     end else if (routed_data !== 8'h00) $fatal(1,"empty bank exposed");
                 end
-        begin_load(3); send(0,8'h17); end_load;
-        select_slot(3); master=1; mmfs=1; #1;
-        if (valid || routed_data !== 8'hA9) $fatal(1,"invalid slot3 fallback");
-        select_slot(2);
-        if (!valid) $fatal(1,"slot3 upload corrupted slot2");
         // Repeated/out-of-order and oversized uploads are rejected.
         begin_load(0); send(0,1); send(0,2); end_load;
         select_slot(0); if (valid) $fatal(1,"duplicate byte accepted");
-        begin_load(2);
+        begin_load(1);
         for (address=0; address<16385; address=address+1) send(address,8'h61);
         end_load;
-        select_slot(2); if (valid) $fatal(1,"oversized image accepted");
-        $display("PASS tb_sideways_rom_bank: four slots, both models, all bytes, fallback and rejection");
+        select_slot(1); if (valid) $fatal(1,"oversized image accepted");
+        select_slot(3); master=1; mmfs=1; #1;
+        if (valid || routed_data !== 8'hA9) $fatal(1,"slot3 built-in fallback lost");
+        $display("PASS tb_sideways_rom_bank: two slots, both models, all bytes, fallback and rejection");
         $finish;
     end
 endmodule

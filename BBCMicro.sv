@@ -278,8 +278,6 @@ parameter CONF_STR = {
 	"P1,Sideways ROMs;",
 	"P1F5,ROM,Load ROM slot 0;",
 	"P1F6,ROM,Load ROM slot 1;",
-	"P1F7,ROM,Load ROM slot 2;",
-	"P1F8,ROM,Load ROM slot 3;",
 	"OC,Autostart,No,Yes;",
 	"-;",
 	"O4,Model,B(MOS6502),Master(R65SC12);",
@@ -705,18 +703,16 @@ reg [7:0] ram_dout;
 	always @(posedge clk_sys) if(mem_addr[18] & mem_addr[17] & old_we & ~mem_we_n) ram[mem_addr[16:0]] <= mem_din;
 	always @(posedge clk_sys) if(mem_addr[17]) ram_dout <= ram[mem_addr[16:0]]; else ram_dout <=0;
 `else
-	// The Domesday video decoder needs 15 M10Ks.  Preserve the complete 64 KiB
-	// 65C02 Tube RAM and every Master memory region, but omit sideways-RAM bank
-	// 7 (cartridge ROM positions 0-3 are separate MLAB memories).  Packing RAM
-	// banks 8-12 down by one releases a full 16 KiB / 16 M10K allocation.
-	// Keep each side of the hole as a directly indexed synchronous RAM.  An
-	// arithmetic packed address prevents Quartus 17 from inferring M10Ks.
-	reg [7:0] ram_low[7 * 16384];  // banks 0-6: Tube + SWRAM 4-6
+	// Keep the complete 64 KiB Tube RAM, all four 16 KiB sideways-RAM banks
+	// 4-7 and every Master memory region.  The two OSD-loadable ROM images use
+	// 26 M10Ks, leaving enough block RAM to restore bank 7 alongside the video
+	// decoder. Keep the two address ranges as directly indexed synchronous RAMs.
+	reg [7:0] ram_low[8 * 16384];  // banks 0-7: Tube + SWRAM 4-7
 	reg [7:0] ram_high[5 * 16384]; // banks 8-12: main/shadow/filing RAM
 	reg [7:0] ram_low_dout;
 	reg [7:0] ram_high_dout;
 	always @(posedge clk_sys) begin
-		if(mem_addr[18] && mem_addr[17:14] < 4'd7) begin
+		if(mem_addr[18] && mem_addr[17:14] < 4'd8) begin
 			if(old_we & ~mem_we_n) ram_low[mem_addr[16:0]] <= mem_din;
 			ram_low_dout <= ram_low[mem_addr[16:0]];
 		end
@@ -728,7 +724,7 @@ reg [7:0] ram_dout;
 		end
 	end
 	always_comb begin
-		if(mem_addr[18] && mem_addr[17:14] < 4'd7) ram_dout = ram_low_dout;
+		if(mem_addr[18] && mem_addr[17:14] < 4'd8) ram_dout = ram_low_dout;
 		else if(mem_addr[18] && mem_addr[17:14] > 4'd7 && mem_addr[17:14] <= 4'd12)
 			ram_dout = ram_high_dout;
 		else ram_dout = 8'd0;

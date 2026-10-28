@@ -382,3 +382,19 @@ Installed as `/media/fat/_Computer/BBCMicro_Domesday_03.rbf`; transfer hash
 verified as `9a483695d34c7e6983c8719af33e9dcc0f3c365f879f634a05b2287ab15079ac`.
 Test code execution first because version 02 failed there. Keep the known-good
 26 October build available for rollback.
+
+Hardware test of version 03 reaches the Domesday `!BOOT` program but reports
+`Error: sideways RAM wrongly configured`. This is a functional configuration
+failure rather than evidence of the remaining timing violations. Commit
+`d8106e0` had reduced `ram_low` from eight to seven 16 KiB banks, deliberately
+removing writable sideways-RAM bank 7 to make room for the JPEG decoder. The
+known-good pre-video layout supplied all four writable banks 4–7.
+
+The four OSD-loadable ROM images consume exactly 52 M10Ks in the completed
+fit. Restrict their packed store to slots 0 and 1 (26 M10Ks), remove file
+indices 7 and 8 from the OSD, and restore bank 7 (16 M10Ks). Slot 2 remains
+empty and slot 3 still follows the built-in Model B DFS/Master MMFS mapping.
+Expected usage is approximately 536/553 RAM blocks, leaving 17 free. Hardware
+simulation verifies both loadable slots byte-for-byte in both models, rejects
+the removed upload indices, and preserves slot 3 fallback. A new placed build
+must confirm the expected resource allocation before deployment.

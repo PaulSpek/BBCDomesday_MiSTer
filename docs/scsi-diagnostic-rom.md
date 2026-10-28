@@ -15,26 +15,24 @@ python core/tools/build_scsi_diag.py build/beebasm/bin/beebasm.exe
 The generated `roms/scsi_diag.mif` is checked in so a remote Quartus build
 does not require BeebAsm. The local `scsi_diag.rom` binary is ignored.
 
-The **Cartridge ROMs** OSD submenu loads slots **0–3** in both Master and
-Model B modes without rebuilding the RBF. Select **Load ROM slot 0**, **1**,
-**2** or **3**, then an exactly 16,384-byte `.rom` file. Slots 0 and 2 start
-empty, slot 1 contains this diagnostic, and slot 3 retains its built-in
-filing-system ROM (Master MMFS or Model B DFS) until replaced. A loaded slot 3
-is visible regardless of the built-in Filesystem enable setting.
+The **Sideways ROMs** OSD submenu loads slots **0** and **1** in both Master
+and Model B modes without rebuilding the RBF. Select either entry, then an
+exactly 16,384-byte `.rom` file. Slot 0 starts empty and slot 1 contains this
+diagnostic. Slot 2 remains empty and slot 3 retains its built-in filing-system
+ROM (Master MMFS or Model B DFS); those two slots are not loadable.
 
 The BBC resets during an upload so MOS rescans the slots. A short, oversized
-or non-sequential upload invalidates only that slot; invalid slot 3 falls back
-to its built-in ROM. Images are shared between models, survive CPU reset and
+or non-sequential upload invalidates only that slot. Images are shared between
+models, survive CPU reset and
 model changes, and must be loaded again after reloading the RBF. Master
 private-RAM mapping still takes precedence when selected by MOS. These are
 ROM images, not CPU-writeable sideways RAM.
 
-All four slots use MLAB distributed memory (`ramstyle = "MLAB, no_rw_check"`).
-The previous two-slot implementation used 256 MLABs per slot; four of those
-would exceed the device limit. Five bytes now form one 40-bit word, using
-both 20-bit MLAB lanes efficiently: 3277 words per slot, with a zero-padded
-final word. Estimated allocation is 206 MLABs per slot, 824 total. MIFs use
-3277 little-endian 40-bit words; OSD uploads remain ordinary 16 KiB ROM files.
+The two slots share a packed single-port M10K store. Five bytes form one
+40-bit word: 3277 words per slot, with a zero-padded final word. The store
+uses 26 M10Ks, half the former four-slot allocation. The released blocks
+restore writable sideways-RAM bank 7. MIFs use 3277 little-endian 40-bit words;
+OSD uploads remain ordinary 16 KiB ROM files.
 The read latency remains one system clock. Verify full-fit resource usage
 and timing before deployment. Read-during-write data is not used because the
 BBC stays in reset throughout a download.

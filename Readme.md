@@ -8,9 +8,10 @@ below while adding the first MiSTer framework modernization needed by the
 Picmatic-derived video path. See [DOMESDAY_PORTING.md](DOMESDAY_PORTING.md) and
 the [project feasibility notes](docs/feasibility.md).
 
-The **Cartridge ROMs** OSD submenu loads 16 KiB ROMs into slots 0–3 in either
-Model B or Master mode. See [cartridge ROM loading](docs/cartridge-roms.md)
-for defaults, persistence, slot 3 replacement and test details.
+The **Sideways ROMs** OSD submenu loads 16 KiB ROMs into slots 0 and 1 in
+either Model B or Master mode. Slots 2 and 3 retain their normal empty and
+built-in filing-system mappings so all four writable sideways-RAM banks fit.
+See [sideways ROM loading](docs/cartridge-roms.md) for details.
 
 The current modernization is intentionally inactive at runtime: the
 `MISTER_FB` interface is compiled and driven to safe RGB565 defaults, while

@@ -34,7 +34,7 @@ def main() -> None:
     cartridges = ROMS / "cartridge_roms_packed.mif"
     empty = bytes(SLOT_BYTES)
     diagnostic = parse_packed_mif(ROMS / "scsi_diag.mif", SLOT_BYTES)
-    expected = (empty, diagnostic, empty, empty)
+    expected = (empty, diagnostic)
     for slot, content in enumerate(expected):
         actual = packed_region(cartridges, slot, 3277, SLOT_BYTES)
         assert actual == content, f"packed cartridge slot {slot} differs"

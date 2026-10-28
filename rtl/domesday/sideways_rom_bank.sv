@@ -1,7 +1,8 @@
-// Four shared OSD ROM images, available in slots 0..3 in either BBC model.
+// Two shared OSD ROM images, available in slots 0 and 1 in either BBC model.
 //
-// All slots share a single-port M10K store. Each image occupies 3277 40-bit
-// words. Reads share the upload address port while the CPU is held in reset.
+// Both slots share a single-port M10K store. Each image occupies 3277 40-bit
+// words. Slots 2 and 3 retain their normal empty/built-in routing and consume
+// no upload storage. Reads share the upload port while the CPU is in reset.
 module sideways_rom_bank (
     input clk,
     input [1:0] read_slot,
@@ -16,35 +17,34 @@ module sideways_rom_bank (
     output loading
 );
     localparam integer WORDS_PER_SLOT = 3277;
-    localparam integer TOTAL_WORDS = 4 * WORDS_PER_SLOT;
+    localparam integer TOTAL_WORDS = 2 * WORDS_PER_SLOT;
 
 `ifdef DOMESDAY_BEHAVIORAL_ROM
     (* ramstyle = "M10K, no_rw_check", ram_init_file = "roms/cartridge_roms_packed.mif" *)
     reg [39:0] memory [0:TOTAL_WORDS-1];
 `endif
 
-    reg [3:0] valid_slots = 4'b0010; // diagnostic ROM powers up in slot 1
-    wire selected = file_index >= 8'd5 && file_index <= 8'd8;
-    wire [1:0] load_slot = file_index[1:0] - 2'd1;
+    reg [1:0] valid_slots = 2'b10; // diagnostic ROM powers up in slot 1
+    wire selected = file_index >= 8'd5 && file_index <= 8'd6;
+    wire load_slot = file_index[0] - 1'b1;
     assign loading = download && selected;
-    assign valid = valid_slots[read_slot];
+    assign valid = !read_slot[1] && valid_slots[read_slot[0]];
 
     wire [11:0] read_local_group;
     wire  [2:0] read_lane;
     packed_rom_address #(.WIDTH(14)) read_address (
         .clk(clk), .address(read_addr), .word_address(read_local_group), .byte_lane(read_lane)
     );
-    reg [13:0] slot_base_q = 0, slot_base_qq = 0;
+    reg [12:0] slot_base_q = 0, slot_base_qq = 0;
     always @(posedge clk) begin
         case (read_slot)
             0: slot_base_q <= 0;
             1: slot_base_q <= WORDS_PER_SLOT;
-            2: slot_base_q <= 2 * WORDS_PER_SLOT;
-            3: slot_base_q <= 3 * WORDS_PER_SLOT;
+            default: slot_base_q <= 0;
         endcase
         slot_base_qq <= slot_base_q;
     end
-    wire [13:0] read_group = slot_base_qq + read_local_group;
+    wire [12:0] read_group = slot_base_qq + read_local_group;
 `ifndef DOMESDAY_BEHAVIORAL_ROM
     wire [39:0] read_word;
 `else
@@ -54,11 +54,11 @@ module sideways_rom_bank (
     assign read_data = read_word[{read_lane_q, 3'b000} +: 8];
 
     reg        was_loading = 1'b0;
-    reg [1:0]  active_slot = 2'd0;
+    reg        active_slot = 1'b0;
     reg [14:0] expected_addr = 15'd0;
     reg        bad_transfer = 1'b0;
     reg [31:0] upload_prefix = 32'd0;
-    reg [13:0] write_group = 14'd0;
+    reg [12:0] write_group = 13'd0;
     reg  [2:0] write_lane = 3'd0;
     wire valid_byte = loading && write_enable &&
         !(was_loading && load_slot != active_slot) && write_addr < 25'd16384 &&

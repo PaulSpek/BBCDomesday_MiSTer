@@ -446,3 +446,28 @@ read-latency errors. It also rejects unallocated/ROM writes. This is a
 functional memory test, not a complete Tube firmware or post-route timing
 simulation. Hardware must retest startup with copro enabled, BASIC execution,
 then the Domesday boot. The next deployment number is 05.
+
+Build `20261028-154542-822935f1` (source `4f7935a`) completed successfully
+on 28 October, with the RBF updated at 16:18:10. Retrieved artifact:
+`build/BBCMicro-4f7935a.rbf`, 4,197,564 bytes, SHA-256
+`9aeb722825a8ba02f56ca28f1db86c4153bcdb171ba69e217154049cef8cc584`.
+The fitter confirms three separate RAM stores: Tube 64 M10Ks, sideways
+64 M10Ks, host/video 80 M10Ks. Total usage remains 536/553 M10Ks with
+26,178 ALMs (62%) and 71/112 DSP blocks.
+
+Global setup is -3.341 ns (TNS -2156.039 ns), worse than version 04's
+-3.133 ns (TNS -1551.134 ns). Global hold passes at +0.260 ns and core
+hold is +0.265 ns. Thus splitting storage has not closed timing; it remains
+an isolation experiment requiring hardware verification of the Tube crash.
+This report review confirms memory allocation and aggregate timing only;
+targeted post-fit checking of the updated RAM exception paths is outstanding.
+Artifact has not yet been deployed as version 05.
+
+Hardware test of `BBCMicro_Domesday_05.rbf`: the 65C02 coprocessor banner is
+now rendered correctly; the corrupted startup text seen with version 04 is
+gone. `!BOOT` then hangs while executing. This confirms that the shared RAM
+placement/aliasing change was relevant to the first failure, but it does not
+yet prove the Tube protocol timing correct. The remaining failure is now a
+live handshake or service wait after copro startup. Next capture point is the
+first `!BOOT` Tube/SCSI request, with `*SCSITEST` retained as the independent
+SCSI baseline.

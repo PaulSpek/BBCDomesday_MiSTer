@@ -341,3 +341,23 @@ ram_low and ram_high inferred arrays. This describes the existing interface
 latency; it does not relax ROM, SCSI, JPEG or other BBC-core paths. The next
 placed report must confirm that the exception matches the intended endpoints
 and expose the next real critical path.
+
+### Result: build 20261028-091642-fe6879e2 (source b341c7a)
+
+Completed 28 October at 09:49:18, exit 0, elapsed 32m35s. Fit uses
+26,786 ALMs (64%), 546/553 RAM blocks and 72/112 DSPs. Setup remains open
+at -4.208 ns with TNS -2525.804 ns; hold passes globally at +0.254 ns.
+
+A targeted TimeQuest query proves that the new RAM exception matched the
+intended endpoints: the ext_A to ram_low/ram_high relationship is 20.834 ns,
+all eight reported paths pass, and the worst RAM slack is +4.386 ns. The
+RAM boundary is no longer present among the overall worst paths.
+
+The new worst path is BBC Video ULA r0_teletext to compositor fetching
+(-4.208 ns, 7.910 ns data, -6.385 ns skew), followed by CRTC v_display to
+the same register (-3.844 ns). Both arrive through unregistered BBC blanking
+signals. Capture hblank, vblank, vsync and field parity once at the 96 MHz
+compositor boundary, then perform edge detection only on those registers.
+The scanline regression accounts for this boundary stage and still checks
+all 1,536 addresses across both fields and all three framebuffer owners.
+No video timing exception is added. Physical verification remains pending.

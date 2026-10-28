@@ -83,12 +83,34 @@ reg       vs_d = 1'b0;
 reg       frame_pending = 1'b0;
 reg [15:0] frame_settle = 16'd0;
 
-wire vblank_start = bbc_vsync & ~vs_d;
+// The BBC raster signals are generated on the delayed/gated 48 MHz clock.
+// Bring them across one parent-clock register before they control the 96 MHz
+// DDR fetch state. Raster edges are many parent cycles wide, so this removes
+// the clock-tree-skew path without changing which scanline is requested.
+reg bbc_hblank_q = 1'b1;
+reg bbc_vblank_q = 1'b1;
+reg bbc_vsync_q  = 1'b0;
+reg odd_field_q  = 1'b0;
+always @(posedge clk) begin
+    if (reset) begin
+        bbc_hblank_q <= 1'b1;
+        bbc_vblank_q <= 1'b1;
+        bbc_vsync_q  <= 1'b0;
+        odd_field_q  <= 1'b0;
+    end else begin
+        bbc_hblank_q <= bbc_hblank;
+        bbc_vblank_q <= bbc_vblank;
+        bbc_vsync_q  <= bbc_vsync;
+        odd_field_q  <= odd_field;
+    end
+end
+
+wire vblank_start = bbc_vsync_q & ~vs_d;
 wire adopt = vblank_start & have_new;
 wire [1:0] next_disp = adopt ? ready_idx : disp_idx;
 
 always @(posedge clk) begin
-    vs_d <= bbc_vsync;
+    vs_d <= bbc_vsync_q;
     jpeg_next_frame <= 1'b0;
     if (reset) begin
         wr_idx <= 2'd0;
@@ -183,20 +205,11 @@ reg [26:0] fetch_base = 27'd0;
 
 reg hblank_d = 1'b1;
 reg vblank_d = 1'b1;
-wire hblank_rise = bbc_hblank & ~hblank_d;
-wire hblank_fall = ~bbc_hblank & hblank_d;
-wire vblank_fall = ~bbc_vblank & vblank_d;
+wire hblank_rise = bbc_hblank_q & ~hblank_d;
+wire hblank_fall = ~bbc_hblank_q & hblank_d;
+wire vblank_fall = ~bbc_vblank_q & vblank_d;
 reg [7:0] active_y = 8'd0;
 reg [9:0] active_x = 10'd0;
-
-// CRTC uses a gated 48 MHz clock with appreciable insertion delay relative
-// to this 96 MHz clock. Capture field parity before the long row-address
-// arithmetic. It changes during vertical blank, well before line fetching.
-reg odd_field_q = 1'b0;
-always @(posedge clk) begin
-    if (reset) odd_field_q <= 1'b0;
-    else odd_field_q <= odd_field;
-end
 
 wire [9:0] source_y_next = 10'd32 + {active_y + 1'b1, 1'b0} + odd_field_q;
 
@@ -212,8 +225,8 @@ end
 endtask
 
 always @(posedge clk) begin
-    hblank_d <= bbc_hblank;
-    vblank_d <= bbc_vblank;
+    hblank_d <= bbc_hblank_q;
+    vblank_d <= bbc_vblank_q;
 
     if (reset) begin
         fetching <= 1'b0;
@@ -224,13 +237,13 @@ always @(posedge clk) begin
         if (vblank_fall) begin
             active_y <= 8'd0;
             start_line_fetch(8'd0, 10'd32 + odd_field_q);
-        end else if (hblank_rise && !bbc_vblank && active_y != 8'd255) begin
+        end else if (hblank_rise && !bbc_vblank_q && active_y != 8'd255) begin
             active_y <= active_y + 1'b1;
             start_line_fetch(active_y + 1'b1, source_y_next);
         end
 
         if (hblank_fall) active_x <= 10'd0;
-        else if (ce_grid && !bbc_hblank && active_x != 10'd639)
+        else if (ce_grid && !bbc_hblank_q && active_x != 10'd639)
             active_x <= active_x + 1'b1;
 
         if (fetching && rd_req2 == rd_ack2) begin
@@ -260,7 +273,7 @@ always @(posedge clk) begin
     if (ce_grid) begin
         pixel_word <= line_buffer[{active_y[0], source_x[9:2]}];
         pixel_lane <= source_x[1:0];
-        laser_valid <= shown && !bbc_hblank && !bbc_vblank;
+        laser_valid <= shown && !bbc_hblank_q && !bbc_vblank_q;
         bbc_r_q <= bbc_r;
         bbc_g_q <= bbc_g;
         bbc_b_q <= bbc_b;

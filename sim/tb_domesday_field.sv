@@ -27,15 +27,16 @@ initial begin
    #2; field=f;
    repeat(4) tick();
    @(negedge clk); vb=0;
-   tick();
+   // One parent-clock boundary register precedes edge detection.
+   repeat(2) tick();
    for(y=0;y<256;y=y+1) begin
     expected=b*479232+(32+2*y+f)*832;
     if(dut.fetch_base !== expected || dut.rdaddr2 !== expected)
       $fatal(1,"field address b=%0d f=%0d y=%0d got=%0d expected=%0d",b,f,y,dut.fetch_base,expected);
     if(dut.fetch_bank !== (y%2)) $fatal(1,"scanline bank mismatch");
     checked=checked+1;
-    @(negedge clk); hb=0; tick();
-    @(negedge clk); hb=1; tick();
+    @(negedge clk); hb=0; repeat(2) tick();
+    @(negedge clk); hb=1; repeat(2) tick();
    end
   end
  end

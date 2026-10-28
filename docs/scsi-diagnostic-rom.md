@@ -1,5 +1,34 @@
 # BBC Master SCSI diagnostic ROM
 
+## Version 1.6: standalone LaserDisc test
+
+The service ROM now accepts both `*SCSITEST` and `*LVDTEST`. Load the
+versioned `SCSITEST_1_6.rom` into Sideways ROM slot 0 or 1 through the OSD;
+the existing RBF can run it. Mount the LV-ROM image and DDV video cache first.
+Run `*LVDTEST` and record the full output. The test changes player position
+to frame 1, so reload/reset before the next Domesday boot experiment.
+
+The eight exchanges are ?P, ?F, ?T1, ?V1, ?Y1, F00001R, ?F and ?P.
+Every CA/C8 transfer consumes its full 256-byte block, with a bounded
+65,536-poll limit per phase wait. RAW prints the first seven reply bytes in
+hex, including the five-digit frame reply and CR. Longer title replies are
+intentionally truncated in the display. ?P checks the P prefix and loaded
+bit; identification queries check their expected T/V/Y prefixes. ?F checks
+F plus five decimal digits and CR; the post-seek query must report F00001.
+The seek acknowledgement must be A0 followed by CR.
+
+`REPLY FAIL (transport completed)` means SCSI completed normally but the
+payload did not meet these checks. `FAIL FC41=...` means a phase timeout or
+completion failure; STEP/END, expected phase, TX/RX counts and status/message
+bytes follow. Each failed transfer resets the adapter before the next test.
+These tests do not trace !BOOT, verify a displayed video frame, or establish
+the exact boot hang. Core 05 currently provides empty replies for ?F and
+F00001R; failures there are expected and expose a missing player service.
+
+The 6502 emulator regression covers both commands, legacy short-transfer
+failures, all eight successful player exchanges, empty replies and complete
+read-phase timeouts. ROM/header/banner version is 1.6.
+
 The diagnostic is a 16 KiB service ROM in Master sideways slot 1. Source:
 `roms/scsi_diag.asm`. It follows the header and service-call conventions in
 `../../docs/sidewrom.pdf`, including a type

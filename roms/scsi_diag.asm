@@ -17,6 +17,10 @@ endstep = &7E
 valid = &7F
 failx = &80
 reply = &81
+fcptr = &88
+fclen = &8A
+lvrow = &8B
+lvchar = &8C
 
 ORG &8000
 .romstart
@@ -26,7 +30,7 @@ EQUB &82
 EQUB copyright-1-romstart
 EQUB 1
 EQUS "SCSI DIAG",0
-EQUS "1.5",0
+EQUS "1.6",0
 EQUB 0
 .copyright EQUS "(C)2026 Domesday project",0
 
@@ -60,12 +64,32 @@ PLA:TAX
 LDA #0
 RTS
 .mismatch
+\ Retry the second command at the original command-tail offset.
+PLA:TAY:PHA
+LDX #0
+.lvmatch
+LDA (&F2),Y
+AND #&DF
+CMP lvcommand,X
+BNE unclaimed
+INY:INX:CPX #7:BNE lvmatch
+LDA (&F2),Y
+CMP #13:BEQ lvclaimed
+CMP #32:BNE unclaimed
+.lvclaimed
+JSR runlv
+PLA:TAY
+PLA:TAX
+LDA #0
+RTS
+.unclaimed
 PLA:TAY
 PLA:TAX
 LDA #4
 .pass
 RTS
 .command EQUS "SCSITEST"
+.lvcommand EQUS "LVDTEST"
 
 .run
 LDX #&17
@@ -177,6 +201,29 @@ JMP afterread
 LDA #fcodename MOD 256:STA ptr
 LDA #fcodename DIV 256:STA ptr+1
 JSR print
+LDA #fcodetext MOD 256:STA fcptr
+LDA #fcodetext DIV 256:STA fcptr+1
+LDA #3:STA fclen
+JSR exchange
+BCS oldfcodefail
+LDA #7:STA stage
+LDA reply:CMP #80
+BNE oldfcodefail
+JSR passline
+JSR metrics
+JMP done
+.oldfcodefail
+JSR fail
+JMP done
+
+\ Common CA/C8 transport; never assert semantic success here.
+.exchange
+LDA #0
+STA txcount:STA txcount+1:STA rxcount:STA rxcount+1
+STA sample:STA index
+LDX #6
+.clearreply
+STA reply,X:DEX:BPL clearreply
 LDA #0:STA endstep:STA valid
 LDA #1:STA stage
 LDA #&10:STA &FC42
@@ -184,7 +231,7 @@ LDX #0
 .fwritecdb
 LDA #&A2:JSR waitphase
 BCC fwritecdbready
-JMP fcodefail
+JMP exchangefail
 .fwritecdbready
 LDA fwritetab,X:STA &FC40
 INX
@@ -195,9 +242,15 @@ LDX #0
 .fwriteblock
 LDA #&22:JSR waitphase
 BCC fwriteblockready
-JMP fcodefail
+JMP exchangefail
 .fwriteblockready
-LDA fcodetext,X:STA &FC40
+LDA #0
+CPX fclen
+BCS fcpad
+TXA:TAY
+LDA (fcptr),Y
+.fcpad
+STA &FC40
 INC txcount
 BNE txnowrap
 INC txcount+1
@@ -206,14 +259,14 @@ INX
 BNE fwriteblock
 LDA #3:STA stage
 JSR endcommand
-BCS fcodefail
+BCS exchangefail
 LDA #4:STA stage
 LDA #0:STA endstep:STA valid
 LDA #&10:STA &FC42
 LDX #0
 .freadcdb
 LDA #&A2:JSR waitphase
-BCS fcodefail
+BCS exchangefail
 LDA freadtab,X:STA &FC40
 INX
 CPX #6
@@ -222,7 +275,7 @@ LDA #5:STA stage
 LDX #0
 .freadblock
 LDA #&62:JSR waitphase
-BCS fcodefail
+BCS exchangefail
 LDA &FC40
 CPX #7
 BCS notfirst
@@ -236,18 +289,104 @@ INX
 BNE freadblock
 LDA #6:STA stage
 JSR endcommand
-BCS fcodefail
-LDA #7:STA stage
-LDA reply:CMP #80
-BNE fcodefail
-JSR passline
-JSR metrics
-JMP done
+BCS exchangefail
+CLC
+RTS
+.exchangefail
+STX failx
+SEC
+RTS
 .fcodefail JSR fail
 .done
 LDA #footer MOD 256:STA ptr
 LDA #footer DIV 256:STA ptr+1
 JSR print
+LDA #0:STA &FC43
+RTS
+
+\ Commands occupy eight bytes each including CR and zero padding. Both
+\ frame-number queries are compared with F00001, not just transport GOOD.
+.runlv
+LDA #22:JSR oswrch
+LDA #7:JSR oswrch
+LDA #lvbanner MOD 256:STA ptr
+LDA #lvbanner DIV 256:STA ptr+1
+JSR print
+LDA #0:STA lvrow:STA &FC43
+.lvnext
+LDA lvrow:ASL A:ASL A:ASL A
+CLC:ADC #lvcommands MOD 256:STA fcptr
+LDA #lvcommands DIV 256:ADC #0:STA fcptr+1
+LDA #0:STA fclen
+.lvlength
+LDY fclen
+LDA (fcptr),Y
+BEQ lvsend
+JSR osasci
+INC fclen
+BNE lvlength
+.lvsend
+JSR exchange
+BCC lvtransportok
+JSR fail
+JMP lvadvance
+.lvtransportok
+LDA #lvraw MOD 256:STA ptr
+LDA #lvraw DIV 256:STA ptr+1
+JSR print
+LDX #0
+.lvrawloop
+LDA reply,X:JSR hexbyte
+LDA #32:JSR oswrch
+INX:CPX #7:BNE lvrawloop
+LDA #13:JSR osasci
+\ The first frame query only checks format, the second must be frame 1.
+LDA lvrow
+CMP #1:BEQ lvframe
+CMP #6:BEQ lvframe
+CMP #5:BEQ lvseek
+LDA reply
+LDX lvrow
+CMP lvexpected,X
+BNE lvreplybad
+LDA lvrow:BEQ lvloaded
+CMP #7:BNE lvprefixok
+.lvloaded
+LDA reply+1:AND #&20:BEQ lvreplybad
+.lvprefixok
+JSR passline
+JMP lvadvance
+.lvseek
+LDA reply:CMP #65:BNE lvreplybad
+LDA reply+1:CMP #48:BNE lvreplybad
+LDA reply+2:CMP #13:BNE lvreplybad
+JSR passline
+JMP lvadvance
+.lvframe
+LDA reply:CMP #70:BNE lvreplybad
+LDX #1
+.lvdigits
+LDA reply,X:CMP #48:BCC lvreplybad
+CMP #58:BCS lvreplybad
+INX:CPX #6:BNE lvdigits
+LDA reply+6:CMP #13:BNE lvreplybad
+LDA lvrow:CMP #6:BNE lvframeok
+LDX #1
+.lvtarget
+LDA reply,X:CMP lvframeone,X:BNE lvreplybad
+INX:CPX #6:BNE lvtarget
+.lvframeok
+JSR passline
+JMP lvadvance
+.lvreplybad
+LDA #lvbad MOD 256:STA ptr
+LDA #lvbad DIV 256:STA ptr+1
+JSR print
+.lvadvance
+INC lvrow
+LDA lvrow:CMP #8:BEQ lvdone
+JMP lvnext
+.lvdone
 LDA #0:STA &FC43
 RTS
 
@@ -386,7 +525,21 @@ JMP oswrch
 .freadtab EQUB &C8,0,0,0,0,0
 .fcodetext EQUB "?","P",13
 SKIP 253
-.banner EQUS "AIV SCSI diagnostic v1.5",13,"FC41 phases / bounded timeout",13,0
+.lvcommands
+EQUS "?P",13:SKIP 5
+EQUS "?F",13:SKIP 5
+EQUS "?T1",13:SKIP 4
+EQUS "?V1",13:SKIP 4
+EQUS "?Y1",13:SKIP 4
+EQUS "F00001R",13
+EQUS "?F",13:SKIP 5
+EQUS "?P",13:SKIP 5
+.lvexpected EQUB 80,70,84,86,89,65,70,80
+.lvframeone EQUS "F00001",13
+.lvbanner EQUS "AIV LaserDisc test v1.6",13,"Mount DDV + LV-ROM before test",13,"RAW = first 7 of 256 reply bytes",13,0
+.lvraw EQUS "RAW ",0
+.lvbad EQUS "REPLY FAIL (transport completed)",13,0
+.banner EQUS "AIV SCSI diagnostic v1.6",13,"FC41 phases / bounded timeout",13,0
 .busname EQUS "BUS FREE: ",0
 .turname EQUS "TUR host 10: ",0
 .capname EQUS "CAPACITY host 10: ",0

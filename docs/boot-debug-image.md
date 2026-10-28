@@ -1,5 +1,26 @@
 # Instrumented BeebVFS1 boot image 01
 
+## Revision 02: markers at the executable entry
+
+Hardware result for debug01: no output; hangs immediately as observed by
+the user. This does not locate the stall because debug01 printed only at
+the runtime service wrappers, after startup. No conclusion about FCODE I0
+or even successful entry into !BOOT follows from this result.
+
+`scsi0-debug02.dat` adds an immediate `[` via OSWRCH at &0E00, then
+`D02 ENTRY]` and a newline from the appended loader. After copying the
+instrumentation to &F000 it prints `[D02 RAM]`. Runtime entry/return
+logging follows as before. The first marker uses the existing MOS output
+path; if this is disabled or hangs, absence of output remains ambiguous.
+Only `[` suggests trouble reaching/executing the appended loader; ENTRY
+without RAM narrows the fault to the copy/second output stage. Both markers
+without wrapper output narrows it to the original runtime startup or output
+configuration. These are checkpoints, not definitive CPU fault diagnoses.
+
+Local execution of the second patch reproduces both complete markers and
+the same intercepted service calls/parameters as the unmodified executable
+through its first FCODE I0. No core or original image was changed.
+
 Original: `/media/fat/BBCMicro/Domesday/BeebVFS1/scsi0.dat`.
 Diagnostic copy: same directory, `scsi0-debug01.dat`.
 Load the diagnostic copy in the **Domesday LV-ROM volume** OSD entry;

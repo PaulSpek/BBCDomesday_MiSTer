@@ -40,10 +40,18 @@ assert boot[:7]==bytes.fromhex('a2 5c a0 4a 4c 04 4d')
 assert boot[0x17A1-0xE00:0x17A4-0xE00]==bytes.fromhex('ad b3 17')
 assert boot[0x178F-0xE00:0x1793-0xE00]==bytes.fromhex('08 8d 16 08')
 append_address=0xE00+len(boot)
-source_address=append_address+18
-# LDX 0; copy a full page; then perform the original entry sequence.
-loader=bytes((0xA2,0,0xBD,source_address&255,source_address>>8,0x9D,0,0xF0,0xE8,0xD0,0xF7,0xA2,0x5C,0xA0,0x4A,0x4C,4,0x4D))
-boot[:7]=bytes((0x4C,append_address&255,append_address>>8,0xEA,0xEA,0xEA,0xEA))
+def emit_text(text):
+    return b''.join(bytes((0xA9,ch,0x20,0xE3,0xFF)) for ch in text.encode('ascii'))
+prefix=emit_text('D02 ENTRY]\r')
+suffix=emit_text('[D02 RAM]\r')
+source_address=append_address+len(prefix)+11+len(suffix)+7
+# Copy a full page, then perform the original entry sequence.
+copy=bytes((0xA2,0,0xBD,source_address&255,source_address>>8,0x9D,0,0xF0,0xE8,0xD0,0xF7))
+loader=prefix+copy+suffix+bytes.fromhex('a2 5c a0 4a 4c 04 4d')
+# The very first instruction emits '[' before jumping to appended code.
+# Byte 7 of the original file is an unused BRK, not a referenced entry.
+assert boot[7]==0
+boot[:8]=bytes((0xA9,91,0x20,0xEE,0xFF,0x4C,append_address&255,append_address>>8))
 boot[0x17A1-0xE00:0x17A4-0xE00]=bytes((0x4C,0,0xF0))
 boot[0x178F-0xE00:0x1793-0xE00]=bytes((0x4C,returned&255,returned>>8,0xEA))
 boot+=loader+debug.ljust(256,b'\0')

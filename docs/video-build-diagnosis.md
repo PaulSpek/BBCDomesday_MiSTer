@@ -319,3 +319,25 @@ added. Boundary and JPEG regressions still pass; the first parallel invocation
 briefly collided in the shared ModelSim work library, and the isolated rerun
 completed with zero errors or warnings. Physical verification is pending a
 new STUDEER build.
+
+### Result: build 20261028-083214-6da4300e (source 374d22f)
+
+Completed 28 October at 09:07:11, exit 0, elapsed 34m56s. Fresh RBF is
+4.03 MiB. Fit uses 26,807 ALMs (64%), 546/553 RAM blocks and 72/112 DSPs.
+The falling-edge RAM experiment is rejected: setup regressed from -3.276 ns
+to -6.676 ns and TNS from -2809.791 ns to -38202.416 ns. Hold still passes
+at +0.247 ns. The build is not deployed as version 03.
+
+Detailed TimeQuest output shows a 5.208 ns rising-to-falling relationship,
+-5.785 ns skew from the gated BBC clock and 5.769 ns data delay. Inverting
+the M10K clock therefore reduces, rather than increases, the available
+timing window. Restore the RAMs to the rising parent edge.
+
+The functional deadline is nevertheless the second rising parent edge:
+ext_A launches on one gated 48 MHz edge and ext_Dout is consumed at the next,
+with two 96 MHz capture opportunities between them. Add a narrowly scoped
+two-cycle setup/one-cycle hold exception only from BBC ext_A registers to the
+ram_low and ram_high inferred arrays. This describes the existing interface
+latency; it does not relax ROM, SCSI, JPEG or other BBC-core paths. The next
+placed report must confirm that the exception matches the intended endpoints
+and expose the next real critical path.

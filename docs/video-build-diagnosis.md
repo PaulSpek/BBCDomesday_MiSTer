@@ -294,3 +294,28 @@ checks all bytes in all four slots and both models, plus invalid uploads.
 The MIF parser now reads WIDTH from the file. The previous 32-bit change also
 used a 32-bit reader for the unchanged 40-bit scsi_diag.mif, so a self-consistent
 round-trip alone was insufficient to prove the embedded diagnostic was intact.
+
+### Result: build 20261028-072547-624aa98f (source 0fd2d47)
+
+Completed 28 October at 07:56:56, exit 0, elapsed 31m07s. Fresh RBF:
+4,229,352 bytes. Fit: 26,777 ALMs (64%), 546/553 RAM blocks and 72/112
+DSPs. Removing the coordinate-dependent JPEG writer ready loop improved
+setup from -4.104 ns to -3.276 ns and reduced setup TNS from -9215.018 ns
+to -2809.791 ns. Hold now passes at +0.232 ns. Every non-core setup clock
+passes; HDMI has the smallest positive margin at +0.079 ns.
+
+The twelve worst setup paths now all launch from BBC ext_A[14/16/17] into
+the inferred ram_low/ram_high M10K write-enable decoder. The worst path has
+7.980 ns data delay and -5.383 ns clock skew. This is a real phase-boundary
+problem: ext_A launches from the delayed, gated 48 MHz BBC clock, but the
+RAM was capturing on the next rising edge of the 96 MHz parent clock. The
+clock-tree difference leaves only about 5 ns of effective setup time.
+
+Next correction moves the inferred BBC RAM read, write and old_nWE capture
+to the falling 96 MHz edge. This remains before the next gated BBC rising
+edge, so it does not add a BBC memory cycle, while giving the RAM address and
+write-enable decoder the opposite parent-clock phase. No timing exception is
+added. Boundary and JPEG regressions still pass; the first parallel invocation
+briefly collided in the shared ModelSim work library, and the isolated rerun
+completed with zero errors or warnings. Physical verification is pending a
+new STUDEER build.

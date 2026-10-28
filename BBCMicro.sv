@@ -702,8 +702,11 @@ reg [7:0] ram_dout;
 // See definition of use_small_memory for explanation
 `ifdef use_small_memory
 	reg [7:0] ram[5 * 16384];
-	always @(posedge clk_sys) if(mem_addr[18] & mem_addr[17] & old_we & ~mem_we_n) ram[mem_addr[16:0]] <= mem_din;
-	always @(posedge clk_sys) if(mem_addr[17]) ram_dout <= ram[mem_addr[16:0]]; else ram_dout <=0;
+	// ext_A is launched by the delayed/gated 48 MHz BBC clock.  Capture the
+	// inferred RAM on the opposite 96 MHz edge so its address and write-enable
+	// decoder gets a real half-cycle instead of the short gated-clock skew path.
+	always @(negedge clk_sys) if(mem_addr[18] & mem_addr[17] & old_we & ~mem_we_n) ram[mem_addr[16:0]] <= mem_din;
+	always @(negedge clk_sys) if(mem_addr[17]) ram_dout <= ram[mem_addr[16:0]]; else ram_dout <=0;
 `else
 	// The Domesday video decoder needs 15 M10Ks.  Preserve the complete 64 KiB
 	// 65C02 Tube RAM and every Master memory region, but omit sideways-RAM bank
@@ -715,13 +718,18 @@ reg [7:0] ram_dout;
 	reg [7:0] ram_high[5 * 16384]; // banks 8-12: main/shadow/filing RAM
 	reg [7:0] ram_low_dout;
 	reg [7:0] ram_high_dout;
-	always @(posedge clk_sys) begin
+	// The BBC core launches ext_A/ext_Din/ext_nWE on the gated 48 MHz clock,
+	// whose global-clock path arrives substantially later than clk_sys.  A RAM
+	// read on the next positive clk_sys edge consequently had only about 5 ns
+	// of effective setup time.  The negative edge is still safely before the
+	// next BBC clock but gives the inferred M10Ks the intended half-cycle.
+	always @(negedge clk_sys) begin
 		if(mem_addr[18] && mem_addr[17:14] < 4'd7) begin
 			if(old_we & ~mem_we_n) ram_low[mem_addr[16:0]] <= mem_din;
 			ram_low_dout <= ram_low[mem_addr[16:0]];
 		end
 	end
-	always @(posedge clk_sys) begin
+	always @(negedge clk_sys) begin
 		if(mem_addr[18] && mem_addr[17:14] > 4'd7 && mem_addr[17:14] <= 4'd12) begin
 			if(old_we & ~mem_we_n) ram_high[mem_addr[16:0]] <= mem_din;
 			ram_high_dout <= ram_high[mem_addr[16:0]];
@@ -737,7 +745,7 @@ reg [7:0] ram_dout;
 
 
 reg old_we;
-always @(posedge clk_sys) old_we <= mem_we_n;
+always @(negedge clk_sys) old_we <= mem_we_n;
 
 // 16k blocks of RAM (not all RAM in each block is used)
 // 00 00xx  Co Processor

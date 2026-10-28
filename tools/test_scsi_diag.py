@@ -109,7 +109,8 @@ if __name__ == "__main__":
         ("read254", "STEP/END EXP TX/RX: 05/00 62 0100/00FE"),
     ]:
         output = run(fault)
-        assert "diagnostic v1.6" in output, output
+        assert "diagnostic v1.7" in output, output
+        assert chr(22) not in output, 'SCSITEST must preserve the screen mode'
         assert expected in output, output
         if fault == "write254":
             assert "VALID S/M REPLY: 01 02/" in output, output
@@ -118,7 +119,8 @@ if __name__ == "__main__":
         print(f"PASS ROM reporting: {fault or 'complete'}")
     for fault in (None, 'empty', 'timeout'):
         output = run(fault, b'LVDTEST')
-        assert 'LaserDisc test v1.6' in output, output
+        assert 'LaserDisc test v1.7' in output, output
+        assert chr(22) not in output, 'LVDTEST must preserve the screen mode'
         if fault is None:
             assert output.count('PASS') == 8, output
             assert 'FAIL' not in output, output

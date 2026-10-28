@@ -30,7 +30,7 @@ EQUB &82
 EQUB copyright-1-romstart
 EQUB 1
 EQUS "SCSI DIAG",0
-EQUS "1.6",0
+EQUS "1.7",0
 EQUB 0
 .copyright EQUS "(C)2026 Domesday project",0
 
@@ -99,8 +99,7 @@ STA &70,X
 DEX
 BPL clearwork
 LDA #0:STA &FC43
-LDA #22:JSR oswrch
-LDA #7:JSR oswrch
+\ Preserve the user's display mode.
 LDA #banner MOD 256:STA ptr
 LDA #banner DIV 256:STA ptr+1
 JSR print
@@ -307,8 +306,7 @@ RTS
 \ Commands occupy eight bytes each including CR and zero padding. Both
 \ frame-number queries are compared with F00001, not just transport GOOD.
 .runlv
-LDA #22:JSR oswrch
-LDA #7:JSR oswrch
+\ Preserve the user's display mode.
 LDA #lvbanner MOD 256:STA ptr
 LDA #lvbanner DIV 256:STA ptr+1
 JSR print
@@ -322,6 +320,9 @@ LDA #0:STA fclen
 LDY fclen
 LDA (fcptr),Y
 BEQ lvsend
+CMP #13:BNE lvprintchar
+LDA #32
+.lvprintchar
 JSR osasci
 INC fclen
 BNE lvlength
@@ -536,10 +537,10 @@ EQUS "?F",13:SKIP 5
 EQUS "?P",13:SKIP 5
 .lvexpected EQUB 80,70,84,86,89,65,70,80
 .lvframeone EQUS "F00001",13
-.lvbanner EQUS "AIV LaserDisc test v1.6",13,"Mount DDV + LV-ROM before test",13,"RAW = first 7 of 256 reply bytes",13,0
+.lvbanner EQUS "AIV LaserDisc test v1.7",13,"Mount DDV + LV-ROM before test",13,"RAW = first 7 of 256 reply bytes",13,0
 .lvraw EQUS "RAW ",0
-.lvbad EQUS "REPLY FAIL (transport completed)",13,0
-.banner EQUS "AIV SCSI diagnostic v1.6",13,"FC41 phases / bounded timeout",13,0
+.lvbad EQUS "REPLY FAIL",13,0
+.banner EQUS "AIV SCSI diagnostic v1.7",13,"FC41 phases / bounded timeout",13,0
 .busname EQUS "BUS FREE: ",0
 .turname EQUS "TUR host 10: ",0
 .capname EQUS "CAPACITY host 10: ",0

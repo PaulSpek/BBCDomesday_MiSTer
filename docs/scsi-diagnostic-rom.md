@@ -1,5 +1,16 @@
 # BBC Master SCSI diagnostic ROM
 
+## Version 1.7: preserve screen mode
+
+Both commands preserve the selected display mode; they no longer send
+VDU 22,7. LVDTEST puts the command and seven raw bytes on the same line,
+then PASS or REPLY FAIL on the next. Normal reply failures therefore fit in
+19 lines at 40 columns. Transport failures still include extended metrics
+and may scroll. Use MODE 3 before testing if more rows/columns are desired.
+The file on MiSTer is `/BBCMicro/SCSITEST_1_7.rom`; select it through the
+Sideways ROMs OSD and check the displayed version is 1.7.
+REPLY FAIL still means a completed transport with an unexpected payload.
+
 ## Version 1.6: standalone LaserDisc test
 
 The service ROM now accepts both `*SCSITEST` and `*LVDTEST`. Load the

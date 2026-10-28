@@ -16,7 +16,7 @@ module sideways_rom_bank (
     input [7:0] write_data,
     output loading
 );
-    localparam integer WORDS_PER_SLOT = 3277;
+    localparam [12:0] WORDS_PER_SLOT = 13'd3277;
     localparam integer TOTAL_WORDS = 2 * WORDS_PER_SLOT;
 
 `ifdef DOMESDAY_BEHAVIORAL_ROM
@@ -66,7 +66,7 @@ module sideways_rom_bank (
     wire tail = write_addr == 25'd16383;
     wire commit_word = valid_byte && was_loading && write_addr != 0 &&
         (tail || write_lane == 3'd4);
-    wire [13:0] memory_address = commit_word ? write_group : read_group;
+    wire [12:0] memory_address = commit_word ? write_group : read_group;
     wire [39:0] memory_data = tail ? {8'd0, write_data, upload_prefix[23:0]} :
                                                    {write_data, upload_prefix};
 
@@ -81,7 +81,7 @@ module sideways_rom_bank (
         .addressstall_b(1'b0), .byteena_b(1'b1), .q_b(), .eccstatus()
     );
     defparam memory.operation_mode = "SINGLE_PORT",
-        memory.width_a = 40, memory.widthad_a = 14, memory.numwords_a = TOTAL_WORDS,
+        memory.width_a = 40, memory.widthad_a = 13, memory.numwords_a = TOTAL_WORDS,
         memory.outdata_reg_a = "UNREGISTERED",
         memory.ram_block_type = "M10K",
         memory.maximum_depth = 256,
@@ -106,7 +106,7 @@ module sideways_rom_bank (
             expected_addr <= 15'd0;
             bad_transfer <= 1'b0;
             upload_prefix <= 32'd0;
-            write_group <= load_slot * WORDS_PER_SLOT;
+            write_group <= load_slot ? WORDS_PER_SLOT : 13'd0;
             write_lane <= 3'd0;
         end
 

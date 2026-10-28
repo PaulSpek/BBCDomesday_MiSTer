@@ -398,3 +398,9 @@ Expected usage is approximately 536/553 RAM blocks, leaving 17 free. Hardware
 simulation verifies both loadable slots byte-for-byte in both models, rejects
 the removed upload indices, and preserves slot 3 fallback. A new placed build
 must confirm the expected resource allocation before deployment.
+
+The first build attempt, `20261028-121750-f055fbc2`, stopped during analysis
+with Quartus internal error 272006. The store had been reduced to 6,554 words
+and its signals to 13 address bits, but the explicit `altsyncram.widthad_a`
+parameter still specified 14. Align the port and parameter at 13 bits; the
+hardware-model simulation passes again before retrying Quartus.

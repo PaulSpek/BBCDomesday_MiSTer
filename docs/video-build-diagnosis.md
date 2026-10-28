@@ -361,3 +361,24 @@ compositor boundary, then perform edge detection only on those registers.
 The scanline regression accounts for this boundary stage and still checks
 all 1,536 addresses across both fields and all three framebuffer owners.
 No video timing exception is added. Physical verification remains pending.
+
+Hardware-test note, 28 October: the user reports that numbered deployment
+`BBCMicro_Domesday_02.rbf` fails with an error when executing code. The exact
+message and trigger are not yet captured. Do not use version 02 as a working
+baseline; retain the separately named, user-confirmed 26 October reference.
+The next numbered artifact must contain the compositor boundary correction
+and must be treated as a diagnostic build until code execution is retested.
+
+### Diagnostic deployment 03 (source 2a1cb49)
+
+Build 20261028-095834-a580ecb5 completed successfully at 10:34:24 after
+35m50s. The fresh RBF is 4,226,920 bytes. Registering the BBC raster inputs
+removed the previous Video ULA/CRTC-to-fetching paths from the reported
+boundary, but timing is not closed: setup is -3.231 ns (TNS -3142.575 ns)
+and core hold regressed to -0.668 ns (TNS -1.329 ns). This is therefore a
+diagnostic artifact, not a release candidate.
+
+Installed as `/media/fat/_Computer/BBCMicro_Domesday_03.rbf`; transfer hash
+verified as `9a483695d34c7e6983c8719af33e9dcc0f3c365f879f634a05b2287ab15079ac`.
+Test code execution first because version 02 failed there. Keep the known-good
+26 October build available for rollback.

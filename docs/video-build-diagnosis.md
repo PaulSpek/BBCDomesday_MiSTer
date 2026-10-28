@@ -259,6 +259,33 @@ TX/RX in every case. Legacy double-write failure still reproduces. The clock
 test uses transport-delayed edges: a delayed continuous assignment would
 filter out the narrow gated pulse instead of modelling insertion delay.
 
+### Result: build 20261028-064206-eb815f96 (source 56ff090)
+
+Completed 28 October at 07:13:08, exit 0, elapsed 30m56s. Fresh RBF:
+4,200,660 bytes, timestamp 07:12:49. Fit: 26,098 ALMs (62%), 546/553 RAM
+blocks and 72/112 DSPs. The SCSI parent-clock correction removed SCSI from
+the reported worst paths. Timing remains open: setup -4.104 ns, TNS
+-9215.018 ns; hold -0.360 ns, TNS -1.035 ns.
+
+Worst setup now runs from color_pipeline y_pos_o through fb_writer's
+coordinate-dependent px_ready feedback to the Cb FIFO count register:
+13.375 ns data delay, -0.816 ns skew. Break that combinational feedback by
+holding px_ready low for every in-flight DDR write. The writer still combines
+all pixels of an open 64-bit group before launching its write; it only gives
+up overlap between a DDR acknowledgement and collection of the next group.
+No JPEG arithmetic, coordinates, FIFO contents or DDR data layout change.
+
+Validation adds `tb_fb_writer_backpressure`: eight pixels become exactly two
+full-byte-enable 64-bit writes at halfword addresses 0 and 4 while a delayed
+DDR acknowledgement exercises 14 stalled cycles. No pixels are lost or
+duplicated. Existing JPEG color and output tests remain bit-exact for 3,510
+pipeline pixels plus monochrome, 4:4:4 and 4:2:0 integration cases.
+
+Worst hold is now ram_high M10K port-B write-enable to BBC tube/cpu/video
+memory data registers (-0.360/-0.351/-0.324 ns) across the delayed BBC clock.
+Do not mask this with a timing exception. Defer a functional memory-boundary
+change until its CPU/video/Tube cycle latency is separately simulated.
+
 Also corrected built-in upload tracking: ioctl_wr can have gaps; a low strobe
 must not reset the byte-group accumulator. A simulation uploads and reads all
 262,144 bytes with gaps, including the final partial word. Cartridge simulation

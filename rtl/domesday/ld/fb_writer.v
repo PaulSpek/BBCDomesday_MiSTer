@@ -99,8 +99,11 @@ module fb_writer #(
     reg   [7:0] acc_idle;
     localparam [7:0] ACC_IDLE_MAX = 8'd255;        // tail flush; see below
 
-    // px_ready must NOT depend on px_we or it forms a combinational loop; px_grp comes from
-    // px_x/px_y, which the decoder drives independently.
+    // The writer may inspect the incoming coordinate only after accepting it.
+    // Feeding grp_diff back into px_ready makes the registered decoder output
+    // coordinates control the upstream JPEG FIFO pop/count path in one 96 MHz
+    // cycle.  Stall for the complete DDR write instead.  Pixels in the open
+    // group are still coalesced before that write is launched.
     wire        acc_hit   = acc_valid && (px_grp == acc_grp) && (COALESCE != 1'b0);
     wire        grp_diff  = acc_valid && !acc_hit;
     wire [63:0] acc_mrg   = (acc_data & ~lane_m) | (px_dat & lane_m);   // single expression
@@ -109,7 +112,7 @@ module fb_writer #(
     // quiet -- the frame's LAST group never sees a group change.
     wire        do_flush  = acc_valid && ((acc_take && grp_diff) || (acc_idle == ACC_IDLE_MAX));
 
-    assign px_ready = ~clearing & fill_idle & ~(busy & grp_diff);
+    assign px_ready = ~clearing & fill_idle & ~busy;
 
     always @(posedge clk) begin
         if (reset) begin

@@ -506,3 +506,9 @@ therefore not the direct trigger. Both diagnostic images execute their gate
 from &F000 during earlier MOS calls, making high copro RAM and its access
 timing the next boundary. `copro_ramtest.rom` now tests all copro user RAM,
 with `&F000-&F7FF` reported separately and no SCSI/video dependency.
+
+All four coprocessor RAM ranges pass on version 05. This rules out a simple
+copro RAM cell, address-line or high-memory failure under the standalone test
+pattern. Sideways RAM remains separate and had not been covered. The new
+`swram_test.rom` therefore checks writable banks 4-7, including cross-bank
+aliasing, from an engine relocated to host RAM.

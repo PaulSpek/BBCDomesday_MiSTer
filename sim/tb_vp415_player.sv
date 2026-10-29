@@ -70,6 +70,7 @@ module tb_vp415_player;
 		if (!frame_request || frame_index != 122) $fatal(1, "F00123R targeted %0d", frame_index);
 		accept_and_show();
 		if (current_picture != 123 || playing) $fatal(1, "still completion state is wrong");
+		repeat (18) @(posedge clk);
 		send({"?","F",8'h0d,{13{8'h00}}}, 3);
 		for (n = 0; n < 5; n = n + 1) begin
 			reply_index = n + 1; #1;

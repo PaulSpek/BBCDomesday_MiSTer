@@ -261,3 +261,9 @@ Het eerste pakket is in uitvoering op basis van `2bd42ef`:
 - [ ] Geannuleerde/overschreven seeks met request-id en decoderfoutstatus.
 - [ ] PCM-audiopad en gekoppelde discwissel.
 - [ ] Quartus-build, timingrapport en MiSTer-hardwaretest van deze mijlpaal.
+
+De eerste Quartus-pass van `74d1ee4` fit succesvol, maar rapporteerde
+setup-WNS -79,259 ns doordat de vijf cijfers van `?F` met hardwaredeling en
+modulo werden gevormd. Die RBF wordt niet uitgerold. De formatter is daarna
+vervangen door een seriële 17-cycli double-dabble omzetter; een nieuwe build
+moet bevestigen dat dit kunstmatige kritieke pad verdwenen is.

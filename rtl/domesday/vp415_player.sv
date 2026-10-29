@@ -51,23 +51,25 @@ reg [3:0] reply_kind = REPLY_EMPTY;
 reg [31:0] requested_picture = 32'd1;
 reg awaiting_present = 1'b0;
 reg stop_ack_pending = 1'b0;
+reg [19:0] current_picture_bcd = 20'h00001;
+reg [36:0] bcd_shift = 37'd0;
+reg [4:0] bcd_steps = 5'd0;
+reg bcd_busy = 1'b0;
 reg [31:0] number;
 reg [3:0] digit_count;
 integer i;
 
-function automatic [7:0] picture_digit(input [31:0] picture, input [2:0] place);
-	reg [31:0] divisor;
-	begin
-		case (place)
-			3'd0: divisor = 32'd10000;
-			3'd1: divisor = 32'd1000;
-			3'd2: divisor = 32'd100;
-			3'd3: divisor = 32'd10;
-			default: divisor = 32'd1;
-		endcase
-		picture_digit = "0" + ((picture / divisor) % 10);
-	end
-endfunction
+// A serial double-dabble conversion keeps decimal query formatting out of
+// the 96-MHz combinational path.  Seventeen clocks cover the five-digit CAV
+// picture range and are negligible beside one BBC/SCSI handshake.
+reg [36:0] bcd_adjusted;
+integer b;
+always @* begin
+	bcd_adjusted = bcd_shift;
+	for (b = 17; b < 37; b = b + 4)
+		if (bcd_shift[b +: 4] >= 5) bcd_adjusted[b +: 4] = bcd_shift[b +: 4] + 3;
+end
+wire [36:0] bcd_next = bcd_adjusted << 1;
 
 // Reply storage is represented by state rather than a 256-byte RAM.  Reads
 // are therefore stable snapshots until the next complete WRITE F-Code.
@@ -129,7 +131,13 @@ always @* begin
 				else if (reply_index == 1) reply_data = 8'h0d;
 			end else if (reply_index == 0) reply_data = "F";
 			else if (reply_index >= 1 && reply_index <= 5)
-				reply_data = picture_digit(current_picture, reply_index - 1'b1);
+				case (reply_index)
+					1: reply_data = "0" + current_picture_bcd[19:16];
+					2: reply_data = "0" + current_picture_bcd[15:12];
+					3: reply_data = "0" + current_picture_bcd[11:8];
+					4: reply_data = "0" + current_picture_bcd[7:4];
+					default: reply_data = "0" + current_picture_bcd[3:0];
+				endcase
 			else if (reply_index == 6) reply_data = 8'h0d;
 		end
 		REPLY_ACK0, REPLY_ACK1, REPLY_ACK2, REPLY_ACK3: begin
@@ -168,7 +176,18 @@ always @(posedge clk) begin
 		playing <= 1'b0;
 		reverse <= 1'b0;
 		current_picture <= 32'd1;
+		current_picture_bcd <= 20'h00001;
+		bcd_shift <= 37'd0;
+		bcd_steps <= 5'd0;
+		bcd_busy <= 1'b0;
 	end else begin
+		if (bcd_busy) begin
+			bcd_shift <= bcd_next;
+			if (bcd_steps == 5'd16) begin
+				current_picture_bcd <= bcd_next[36:17];
+				bcd_busy <= 1'b0;
+			end else bcd_steps <= bcd_steps + 1'b1;
+		end
 		if (!media_present) begin
 			frame_request <= 1'b0;
 			awaiting_present <= 1'b0;
@@ -186,6 +205,9 @@ always @(posedge clk) begin
 
 		if (frame_presented && awaiting_present) begin
 			current_picture <= requested_picture;
+			bcd_shift <= {20'd0, requested_picture[16:0]};
+			bcd_steps <= 5'd0;
+			bcd_busy <= 1'b1;
 			awaiting_present <= 1'b0;
 			if (stop_ack_pending) begin
 				reply_kind <= REPLY_ACK2;

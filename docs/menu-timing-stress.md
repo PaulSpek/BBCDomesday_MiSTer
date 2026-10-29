@@ -23,6 +23,13 @@ The display updates `PASS nnnn` after each verified load. Success ends with
 offset, expected byte and received byte, then stops. No initial banner means
 the first executable load itself did not complete reliably.
 
+Hardware result, 29 October 2026: the MiSTer completed with
+`DONE: 0100 LOADS PASS`. `0100` is hexadecimal, so all 256 loads and payload
+checks completed. This rules out a readily reproducible general corruption of
+this 7238-byte VFS/Tube bulk-load loop. It does not reproduce the exact ROOT
+metadata query, destination (`&4B3C`), 1164-byte length or original `!BOOT`
+runtime state.
+
 Build and validate:
 
 ```powershell

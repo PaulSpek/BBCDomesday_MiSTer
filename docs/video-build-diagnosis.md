@@ -538,3 +538,16 @@ eight corrected cases: phases 0, 1, 7 and 15 with normal timing and an injected
 transactions and 256/256-byte transmit/receive transfers. Remote Quartus build
 `20261029-145449-75dccdf5` started on STUDEER at 14:54:49 from the exact
 version-05 source base plus these three hardware-file changes.
+
+The build completed successfully at 15:32. Setup WNS improved from the
+version-05 value of approximately -3.341 ns to -2.702 ns, while setup TNS is
+-2537.436 ns. Hold WNS is -0.124 ns (TNS -0.363 ns). The change is therefore
+measurably beneficial but does not close timing. The resulting experimental
+RBF is installed as `BBCMicro_Domesday_06.rbf`, SHA-256
+`79b6e7f2319b851836e8a8b85af68addf82e7b21b7faf4328644bdfc34afd8f0`.
+
+The independent Menu timing-stress image completed all hexadecimal `0100`
+(256) VFS/Tube loads with payload verification on MiSTer. A broad bulk-load
+timing failure is therefore not reproduced. The original ROOT hang still
+differs by its preceding OSFILE-5 metadata request, `&4B3C` destination,
+1164-byte file size and the original interpreter/runtime state.

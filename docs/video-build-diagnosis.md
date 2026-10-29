@@ -498,3 +498,11 @@ does not model. Both are on the MiSTer under
 `/media/fat/BBCMicro/Domesday/BeebVFS1/`. Test the stop image first on both
 cores, then the no-video image. This distinguishes corruption before the
 video-call boundary from failure caused by entering the player-command path.
+
+Hardware result: both isolation images crash on version 05 before displaying
+the video-boundary message, while both work on the verified 26 October core.
+Tube Elite also runs correctly on version 05. The player command itself is
+therefore not the direct trigger. Both diagnostic images execute their gate
+from &F000 during earlier MOS calls, making high copro RAM and its access
+timing the next boundary. `copro_ramtest.rom` now tests all copro user RAM,
+with `&F000-&F7FF` reported separately and no SCSI/video dependency.

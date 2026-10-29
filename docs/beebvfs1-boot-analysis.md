@@ -92,6 +92,12 @@ Thus absence of an F-code payload for I0 is not itself an error. VFS still
 needs its SCSI transaction to complete. The hypothesis that the first
 hardware stall is ?F has not been established by this execution trace.
 
+The tracer options `--ack-fcode-init --interlace-on` deliberately advance
+through only the documented reply-less initialization burst (`I0`, `J0`,
+`$0`) and the interlace state already confirmed on hardware. The next calls
+observed are OSBYTE `&90` and `&72`; no general OSCLI success or videodisc
+reply is fabricated.
+
 ## Video-call isolation experiment
 
 `tools/patch_vfs_boot_video_gate.py` produces two separate images documented

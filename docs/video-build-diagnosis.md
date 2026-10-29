@@ -551,3 +551,17 @@ The independent Menu timing-stress image completed all hexadecimal `0100`
 timing failure is therefore not reproduced. The original ROOT hang still
 differs by its preceding OSFILE-5 metadata request, `&4B3C` destination,
 1164-byte file size and the original interpreter/runtime state.
+
+Hardware result for version 06: the original BeebVFS1 boot no longer hangs at
+the ROOT boundary and reaches `Domesday system starting; please wait`. That
+text is contained in the loaded INIT overlay. The setup-path repair is thus
+functionally significant even though global timing is not yet closed.
+
+An extended ideal-RAM execution trace acknowledges only the three commands
+which Pi1MHz documents as deliberately reply-less. The early sequence is
+`FCODE I0`, `FCODE J0`, `FCODE $0`, then OSBYTE `&90` (the already verified
+interlace condition) and OSBYTE `&72`. Reaching the INIT message on hardware
+places the new stop after the previously failing ROOT/INIT load phase and the
+initial F-code burst. INIT also contains the later `SRROM`, `SRWRITE`,
+`SRDATA`, `INSERT` and `FONT2` setup strings, so the next checkpoint should
+distinguish screen/sideways-RAM initialization from the later videodisc path.

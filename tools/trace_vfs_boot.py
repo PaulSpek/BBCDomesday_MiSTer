@@ -14,6 +14,12 @@ p.add_argument('image', type=Path)
 p.add_argument('--dependencies', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--steps', type=int, default=2000000)
+p.add_argument('--ack-fcode-i0', action='store_true',
+               help='Model only the documented no-reply FCODE I0 OSCLI call')
+p.add_argument('--ack-fcode-init', action='store_true',
+               help='Model the documented no-reply FCODE I0/J0/$0 init burst')
+p.add_argument('--interlace-on', action='store_true',
+               help='Model the OSBYTE &90 interlace query as enabled (X=0)')
 args = p.parse_args()
 sys.path.insert(0, str(args.dependencies.resolve()))
 from py65.devices.mpu65c02 import MPU
@@ -80,6 +86,8 @@ for step in range(args.steps):
             previous = osbyte_values[cpu.a]
             osbyte_values[cpu.a] = (previous & cpu.y) ^ cpu.x
             cpu.x, cpu.y = previous, 0
+        elif cpu.a == 0x90 and args.interlace_on:
+            cpu.x, cpu.y = 0, 0
         else:
             reason = f'unsupported OSBYTE &{cpu.a:02X}'
             break
@@ -94,6 +102,13 @@ for step in range(args.steps):
         item['block_hex'] = bytes(memory[address:address+32]).hex(' ')
         if service == 'OSCLI':
             item['command'] = filename(address)
+            command = item['command'].strip().upper()
+            no_reply_init = {'FCODE I0', 'FCODE J0', 'FCODE $0'}
+            if ((args.ack_fcode_i0 and command == 'FCODE I0') or
+                    (args.ack_fcode_init and command in no_reply_init)):
+                item['model'] = 'documented no-reply F-code returned successfully'
+                rts()
+                continue
         if service == 'OSFILE':
             name = filename(word(address))
             item['name'] = name

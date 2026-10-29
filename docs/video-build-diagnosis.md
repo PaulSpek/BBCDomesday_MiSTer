@@ -465,9 +465,36 @@ Artifact has not yet been deployed as version 05.
 
 Hardware test of `BBCMicro_Domesday_05.rbf`: the 65C02 coprocessor banner is
 now rendered correctly; the corrupted startup text seen with version 04 is
-gone. `!BOOT` then hangs while executing. This confirms that the shared RAM
-placement/aliasing change was relevant to the first failure, but it does not
-yet prove the Tube protocol timing correct. The remaining failure is now a
-live handshake or service wait after copro startup. Next capture point is the
-first `!BOOT` Tube/SCSI request, with `*SCSITEST` retained as the independent
-SCSI baseline.
+gone. `!BOOT` then hangs while executing. This is an improvement in observed
+startup behaviour, but does not establish an aliasing root cause or prove
+reliable copro execution. A handshake wait remains a hypothesis; code or RAM
+corruption and the outstanding setup violations are still possible.
+
+Follow-up hardware result: `*SCSITEST` reports no errors. After the `!BOOT`
+hang, Break prints Acorn Tube, Acorn VFS and BASIC banners, then leaves a
+blinking cursor without a usable prompt. SCSITEST is a host-side service ROM
+accessing FC40–FC43 directly; it does not validate parasite execution, bulk
+Tube transfers or every VFS command. The blinking cursor alone does not prove
+that either CPU is still executing correctly. Next isolation test is a fresh
+core load with copro enabled, before any boot, executing BASIC PRINT and a
+short loop. Compare that with the post-boot Break condition. This separates
+a general copro/BASIC startup fault from a boot-triggered failure.
+
+Tube Elite subsequently runs successfully on the same hardware. This makes a
+general Tube/copro failure less likely, while leaving boot-specific memory
+traffic and the open setup timing as candidates. Instrumented `!BOOT` revision
+02 reaches its RAM marker on version 05 but then shows unstable output. On the
+known-good 26 October core, the same image reaches several FCODE calls. Because
+the instrumentation itself uses &F000 and changes timing, this comparison is
+strong evidence of a core regression but is not yet a precise fault location.
+
+Two narrower images were generated on 29 October. `scsi0-video-stop01.dat`
+executes the original startup and stops visibly before the first known
+LaserVision OSCLI command; the local executable trace reaches `FCODE I0` and
+prints `VIDEO REACHED: FCODE I0`. `scsi0-no-video01.dat` bypasses only FCODE,
+SEARCH, PLAY, STEP, STILL, RESET and AUDIO calls; the local trace passes the
+first FCODE boundary and continues to OSBYTE &90, which the limited simulator
+does not model. Both are on the MiSTer under
+`/media/fat/BBCMicro/Domesday/BeebVFS1/`. Test the stop image first on both
+cores, then the no-video image. This distinguishes corruption before the
+video-call boundary from failure caused by entering the player-command path.

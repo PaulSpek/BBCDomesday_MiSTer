@@ -91,3 +91,13 @@ front-panel buttons and explicitly documents no player reply for I0/I1.
 Thus absence of an F-code payload for I0 is not itself an error. VFS still
 needs its SCSI transaction to complete. The hypothesis that the first
 hardware stall is ?F has not been established by this execution trace.
+
+## Video-call isolation experiment
+
+`tools/patch_vfs_boot_video_gate.py` produces two separate images documented
+in `docs/boot-video-isolation.md`. One stops visibly before the first known
+LaserVision OSCLI command. The other bypasses only those command tokens and
+allows the remaining executable to continue. Comparing both images on the
+26 October reference core and the current core distinguishes corruption before
+the first video call from a fault triggered by entering the video command
+path. It does not by itself distinguish logic errors from open timing paths.

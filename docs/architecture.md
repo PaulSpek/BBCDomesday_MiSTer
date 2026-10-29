@@ -1,5 +1,10 @@
 # Proposed architecture and prototype plan
 
+The current detailed implementation sequence, based on core version 06 and
+the 29 October hardware results, is maintained in
+[video-implementation-plan.md](video-implementation-plan.md). The phases below
+record the original prototype proposal and are not a completion checklist.
+
 ## Target split
 
 ```text

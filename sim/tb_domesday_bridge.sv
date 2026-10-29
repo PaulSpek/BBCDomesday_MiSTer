@@ -32,7 +32,9 @@ module tb_domesday_bridge;
 	reg jpeg_ready = 1'b1;
 	wire jpeg_last;
 	wire jpeg_reset;
-	reg jpeg_next_frame = 1'b0;
+	reg frame_request = 1'b0;
+	reg [31:0] frame_request_index = 32'd0;
+	wire frame_request_ack;
 	wire jpeg_streaming;
 	wire jpeg_stream_done;
 	wire jpeg_stream_error;
@@ -61,7 +63,8 @@ module tb_domesday_bridge;
 		.pvf_fps_den(pvf_fps_den), .pvf_audio_hz(pvf_audio_hz),
 		.jpeg_byte(jpeg_byte), .jpeg_valid(jpeg_valid),
 		.jpeg_ready(jpeg_ready), .jpeg_last(jpeg_last), .jpeg_reset(jpeg_reset),
-		.jpeg_next_frame(jpeg_next_frame),
+		.frame_request(frame_request), .frame_request_index(frame_request_index),
+		.frame_request_ack(frame_request_ack),
 		.jpeg_streaming(jpeg_streaming), .jpeg_stream_done(jpeg_stream_done),
 		.jpeg_stream_error(jpeg_stream_error),
 		.sd_lba(sd_lba), .sd_blk_cnt(), .sd_rd(sd_rd), .sd_wr(),
@@ -257,9 +260,11 @@ module tb_domesday_bridge;
 		if (streamed_count != 4 || streamed[0] != 8'hff || streamed[1] != 8'hd8 ||
 		    streamed[2] != 8'hff || streamed[3] != 8'hd9 || jpeg_stream_error)
 			$fatal(1, "DDV JPEG byte streaming failed");
-		jpeg_next_frame = 1'b1;
+		frame_request_index = 32'd1;
+		frame_request = 1'b1;
+		wait (frame_request_ack);
 		@(posedge clk);
-		jpeg_next_frame = 1'b0;
+		frame_request = 1'b0;
 		wait (!jpeg_stream_done);
 		serve_index();
 		serve_frame(32'd49, 1);

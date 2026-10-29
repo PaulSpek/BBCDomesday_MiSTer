@@ -51,13 +51,28 @@ module tb_aiv_scsi_cpu;
         .clock_48(clk48), .reset_n(reset_n), .di(cpu_di), .addr(cpu_a),
         .dout(cpu_do), .rnw(cpu_rnw), .cpu_enable(cpu_en),
         .bus_enable(bus_en), .opcode_sync(cpu_sync), .regs(regs));
+    wire fc_write, fc_commit;
+    wire [8:0] fc_write_index, fc_reply_index;
+    wire [7:0] fc_write_data, fc_reply_data;
     aiv_scsi_adapter dut(
         .clk(clk), .reset(!reset_n), .cs(adapter_cs), .strobe(strobe),
         .rnw(adapter_rnw), .addr(adapter_addr), .din(adapter_din), .dout(dout),
         .media_present(1'b1), .media_size(64'd2359552), .video_present(1'b1),
+        .fcode_command_write(fc_write), .fcode_command_index(fc_write_index),
+        .fcode_command_data(fc_write_data), .fcode_command_commit(fc_commit),
+        .fcode_reply_index(fc_reply_index), .fcode_reply_data(fc_reply_data),
         .media_read(media_read), .media_lba(media_lba),
         .media_ready(1'b1), .media_addr(media_addr),
         .media_data(media_data), .irq());
+    vp415_player player(
+        .clk(clk), .reset(!reset_n), .media_present(1'b1), .frame_count(32'd1500),
+        .command_write(fc_write), .command_index(fc_write_index),
+        .command_data(fc_write_data), .command_commit(fc_commit),
+        .reply_index(fc_reply_index), .reply_data(fc_reply_data),
+        .frame_request(), .frame_index(), .frame_request_ack(1'b0),
+        .frame_presented(1'b0), .vp_mode(), .video_enabled(),
+        .audio_1_enabled(), .audio_2_enabled(), .playing(), .reverse(),
+        .current_picture());
 
     always @(posedge clk) if (reset_n && strobe && adapter_cs && !adapter_rnw && adapter_addr == 0 && dut.req_asserted) begin
         accepted = accepted + 1;

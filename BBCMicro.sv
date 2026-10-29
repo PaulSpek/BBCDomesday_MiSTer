@@ -471,6 +471,22 @@ wire        domesday_jpeg_streaming;
 wire        domesday_jpeg_stream_done;
 wire        domesday_jpeg_stream_error;
 wire        domesday_jpeg_next_frame;
+wire        domesday_frame_request;
+wire [31:0] domesday_frame_request_index;
+wire        domesday_frame_request_ack;
+wire  [2:0] domesday_vp_mode;
+wire        domesday_video_enabled;
+wire        domesday_audio_1_enabled;
+wire        domesday_audio_2_enabled;
+wire        domesday_player_playing;
+wire        domesday_player_reverse;
+wire [31:0] domesday_current_picture;
+wire        fcode_command_write;
+wire  [8:0] fcode_command_index;
+wire  [7:0] fcode_command_data;
+wire        fcode_command_commit;
+wire  [8:0] fcode_reply_index;
+wire  [7:0] fcode_reply_data;
 wire        aiv_scsi_cs;
 wire        aiv_scsi_strobe;
 wire        aiv_scsi_rnw;
@@ -512,7 +528,9 @@ domesday_bridge domesday
 	.jpeg_ready      (domesday_jpeg_ready),
 	.jpeg_last       (domesday_jpeg_last),
 	.jpeg_reset      (domesday_jpeg_reset),
-	.jpeg_next_frame (domesday_jpeg_next_frame),
+	.frame_request   (domesday_frame_request),
+	.frame_request_index(domesday_frame_request_index),
+	.frame_request_ack(domesday_frame_request_ack),
 	.jpeg_streaming  (domesday_jpeg_streaming),
 	.jpeg_stream_done(domesday_jpeg_stream_done),
 	.jpeg_stream_error(domesday_jpeg_stream_error),
@@ -525,6 +543,23 @@ domesday_bridge domesday
 	.sd_buff_dout    (sd_buff_dout),
 	.sd_buff_wr      (sd_buff_wr),
 	.sd_buff_din     (sd_buff_din[3])
+);
+
+vp415_player vp415
+(
+	.clk(clk_sys), .reset(reset | aiv_scsi_reset),
+	.media_present(domesday_ddv_valid), .frame_count(domesday_pvf_frames),
+	.command_write(fcode_command_write), .command_index(fcode_command_index),
+	.command_data(fcode_command_data), .command_commit(fcode_command_commit),
+	.reply_index(fcode_reply_index), .reply_data(fcode_reply_data),
+	.frame_request(domesday_frame_request), .frame_index(domesday_frame_request_index),
+	.frame_request_ack(domesday_frame_request_ack),
+	.frame_presented(domesday_jpeg_next_frame),
+	.vp_mode(domesday_vp_mode), .video_enabled(domesday_video_enabled),
+	.audio_1_enabled(domesday_audio_1_enabled),
+	.audio_2_enabled(domesday_audio_2_enabled),
+	.playing(domesday_player_playing), .reverse(domesday_player_reverse),
+	.current_picture(domesday_current_picture)
 );
 
 // Slot 4 is intentionally separate from the DDV playback cache.  An LV-ROM
@@ -583,6 +618,12 @@ aiv_scsi_adapter aiv_scsi
 	.media_present(domesday_vfs_valid),
 	.media_size(domesday_vfs_size),
 	.video_present(domesday_pvf_valid | domesday_ddv_valid),
+	.fcode_command_write(fcode_command_write),
+	.fcode_command_index(fcode_command_index),
+	.fcode_command_data(fcode_command_data),
+	.fcode_command_commit(fcode_command_commit),
+	.fcode_reply_index(fcode_reply_index),
+	.fcode_reply_data(fcode_reply_data),
 	.media_read(aiv_scsi_media_read),
 	.media_lba (aiv_scsi_media_lba),
 	.media_ready(aiv_scsi_media_ready),
@@ -903,6 +944,8 @@ domesday_video domesday_compositor
 	.jpeg_ready(domesday_jpeg_ready), .jpeg_last(domesday_jpeg_last),
 	.jpeg_reset(domesday_jpeg_reset),
 	.jpeg_next_frame(domesday_jpeg_next_frame),
+	.vp_mode(domesday_vp_mode),
+	.laser_video_enabled(domesday_video_enabled),
 	.ce_grid(ce_16),
 	.bbc_r(bbc_red_vid), .bbc_g(bbc_green_vid), .bbc_b(bbc_blue_vid),
 	.bbc_hblank(HBlank), .bbc_vblank(VBlank),

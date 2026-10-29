@@ -19,6 +19,14 @@ module aiv_scsi_adapter
 	// itself read from media_present; video_present tells its F-code scan that
 	// one playable video-only disc is available as directory 1.
 	input             video_present,
+	// Complete VP415 command stream.  The player owns parsing and reply
+	// state; this module remains only the SCSI/1-MHz-bus transport.
+	output            fcode_command_write,
+	output      [8:0] fcode_command_index,
+	output      [7:0] fcode_command_data,
+	output            fcode_command_commit,
+	output      [8:0] fcode_reply_index,
+	input       [7:0] fcode_reply_data,
 	output            media_read,
 	output      [31:0] media_lba,
 	input             media_ready,
@@ -234,6 +242,16 @@ always @* begin
 end
 
 assign media_read = (phase == PH_READ_WAIT);
+assign fcode_command_write = strobe && !rnw && addr == 2'd0 &&
+	phase == PH_DATAOUT && req_asserted;
+assign fcode_command_index = data_count;
+assign fcode_command_data = din;
+assign fcode_command_commit = fcode_command_write && data_count == 9'd255;
+// On the read-ack edge data_reg is preloaded for the following byte, hence
+// select index+1 for that edge.  Outside DATA phase the CDB completion edge
+// always needs reply byte zero regardless of an earlier transfer's counter.
+assign fcode_reply_index = (phase == PH_DATA) ?
+	data_count + ((strobe && rnw && addr == 2'd0 && req_asserted) ? 1'b1 : 1'b0) : 9'd0;
 assign media_lba = current_block >> 1;
 assign media_addr = (phase == PH_READ_WAIT) ? (current_block[0] ? 9'd256 : 9'd0) :
 	(phase == PH_READ && strobe && rnw && addr == 2'd0 && data_count == 9'd255 && !current_block[0]) ? 9'd256 :
@@ -373,7 +391,7 @@ always @(posedge clk) begin
 					if (host_id == 8'h10) begin
 						data_count <= 9'd0;
 						data_length <= 9'd256;
-						data_reg <= fcode_byte(0);
+						data_reg <= fcode_reply_data;
 						phase <= PH_DATA;
 					end else begin
 						scsi_status <= 8'h02;
@@ -459,7 +477,7 @@ always @(posedge clk) begin
 					data_count <= data_count + 1'b1;
 					if (cdb[0] == 8'h12) data_reg <= inquiry_byte(data_count + 1'b1);
 					else if (cdb[0] == 8'h03) data_reg <= sense_byte(data_count + 1'b1);
-					else if (cdb[0] == 8'hc8) data_reg <= fcode_byte(data_count + 1'b1);
+					else if (cdb[0] == 8'hc8) data_reg <= fcode_reply_data;
 					else data_reg <= control_byte(cdb[0], data_count + 1'b1);
 				end
 			end

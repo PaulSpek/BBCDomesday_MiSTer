@@ -39,7 +39,12 @@ module domesday_bridge
 	input             jpeg_ready,
 	output reg        jpeg_last    = 1'b0,
 	output            jpeg_reset,
-	input             jpeg_next_frame,
+	// Random-access request from the VP415 player.  Valid remains asserted
+	// until ack; a picture number is converted to this zero-based DDV index
+	// by the player, not guessed by the media layer.
+	input             frame_request,
+	input      [31:0] frame_request_index,
+	output reg        frame_request_ack = 1'b0,
 	output reg        jpeg_streaming = 1'b0,
 	output reg        jpeg_stream_done = 1'b0,
 	output reg        jpeg_stream_error = 1'b0,
@@ -159,6 +164,7 @@ assign sd_wr       = 1'b0;
 assign sd_buff_din = 8'd0;
 
 always @(posedge clk) begin
+	frame_request_ack <= 1'b0;
 	// MiSTer pulses img_mounted both when mounting and unmounting. A zero size
 	// means no media. A fresh mount always invalidates the previous header.
 	if (img_mounted) begin
@@ -360,9 +366,10 @@ always @(posedge clk) begin
 		ST_READY: begin
 			sd_rd <= 1'b0;
 			jpeg_valid <= 1'b0;
-			if (jpeg_next_frame && ddv_valid && pvf_frames != 32'd0) begin
-				requested_frame <= (requested_frame + 1'b1 >= pvf_frames) ?
-				                   32'd0 : requested_frame + 1'b1;
+			if (frame_request && ddv_valid && pvf_frames != 32'd0) begin
+				requested_frame <= (frame_request_index < pvf_frames) ?
+				                   frame_request_index : pvf_frames - 1'b1;
+				frame_request_ack <= 1'b1;
 				ddv_index_valid <= 1'b0;
 				ddv_index_error <= 1'b0;
 				jpeg_stream_done <= 1'b0;

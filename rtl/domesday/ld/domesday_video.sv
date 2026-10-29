@@ -28,6 +28,8 @@ module domesday_video
     input             bbc_hsync,
     input             bbc_vsync,
     input             odd_field,
+	input       [2:0] vp_mode,
+	input             laser_video_enabled,
     output      [3:0] video_r,
     output      [3:0] video_g,
     output      [3:0] video_b,
@@ -282,9 +284,43 @@ end
 
 wire [15:0] laser565 = pixel_word[{pixel_lane, 4'b0000} +: 16];
 wire bbc_black = !(|bbc_r_q) && !(|bbc_g_q) && !(|bbc_b_q);
+wire laser_on = laser_valid && laser_video_enabled;
+wire [3:0] laser_r = laser565[15:12];
+wire [3:0] laser_g = laser565[10:7];
+wire [3:0] laser_b = laser565[4:1];
+reg [3:0] mixed_r;
+reg [3:0] mixed_g;
+reg [3:0] mixed_b;
 
-assign video_r = (laser_valid && bbc_black) ? laser565[15:12] : bbc_r_q;
-assign video_g = (laser_valid && bbc_black) ? laser565[10:7]  : bbc_g_q;
-assign video_b = (laser_valid && bbc_black) ? laser565[4:1]   : bbc_b_q;
+// VP1 video only; VP2 computer only; VP3 hard key; VP4 transparent mix;
+// VP5 highlights the video under non-black BBC pixels and dims elsewhere.
+// All operands have passed through the same ce_grid register, preserving the
+// existing registration between the two sources.
+always @* begin
+	mixed_r = bbc_r_q; mixed_g = bbc_g_q; mixed_b = bbc_b_q;
+	case (vp_mode)
+		3'd1: if (laser_on) begin mixed_r = laser_r; mixed_g = laser_g; mixed_b = laser_b; end
+		3'd2: ;
+		3'd3: if (laser_on && bbc_black) begin mixed_r = laser_r; mixed_g = laser_g; mixed_b = laser_b; end
+		3'd4: if (laser_on) begin
+			if (bbc_black) begin mixed_r = laser_r; mixed_g = laser_g; mixed_b = laser_b; end
+			else begin
+				mixed_r = ({1'b0, laser_r} + {1'b0, bbc_r_q}) >> 1;
+				mixed_g = ({1'b0, laser_g} + {1'b0, bbc_g_q}) >> 1;
+				mixed_b = ({1'b0, laser_b} + {1'b0, bbc_b_q}) >> 1;
+			end
+		end
+		3'd5: if (laser_on) begin
+			mixed_r = bbc_black ? {1'b0, laser_r[3:1]} : laser_r;
+			mixed_g = bbc_black ? {1'b0, laser_g[3:1]} : laser_g;
+			mixed_b = bbc_black ? {1'b0, laser_b[3:1]} : laser_b;
+		end
+		default: ;
+	endcase
+end
+
+assign video_r = mixed_r;
+assign video_g = mixed_g;
+assign video_b = mixed_b;
 
 endmodule

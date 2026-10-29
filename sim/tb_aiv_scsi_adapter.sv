@@ -20,6 +20,12 @@ module tb_aiv_scsi_adapter;
 	wire [8:0] media_addr;
 	reg [7:0] media_data = 8'h5a;
 	wire irq;
+	wire fcode_command_write;
+	wire [8:0] fcode_command_index;
+	wire [7:0] fcode_command_data;
+	wire fcode_command_commit;
+	wire [8:0] fcode_reply_index;
+	wire [7:0] fcode_reply_data;
 	reg [7:0] byte_read;
 	integer n;
 
@@ -30,8 +36,24 @@ module tb_aiv_scsi_adapter;
 		.addr(addr), .din(din), .dout(dout),
 		.media_present(media_present), .media_size(media_size),
 		.video_present(video_present),
+		.fcode_command_write(fcode_command_write),
+		.fcode_command_index(fcode_command_index),
+		.fcode_command_data(fcode_command_data),
+		.fcode_command_commit(fcode_command_commit),
+		.fcode_reply_index(fcode_reply_index), .fcode_reply_data(fcode_reply_data),
 		.media_read(media_read), .media_lba(media_lba), .media_ready(media_ready),
 		.media_addr(media_addr), .media_data(media_data), .irq(irq)
+	);
+
+	vp415_player player (
+		.clk(clk), .reset(reset), .media_present(video_present), .frame_count(32'd1000),
+		.command_write(fcode_command_write), .command_index(fcode_command_index),
+		.command_data(fcode_command_data), .command_commit(fcode_command_commit),
+		.reply_index(fcode_reply_index), .reply_data(fcode_reply_data),
+		.frame_request(), .frame_index(), .frame_request_ack(1'b0),
+		.frame_presented(1'b0), .vp_mode(), .video_enabled(),
+		.audio_1_enabled(), .audio_2_enabled(), .playing(), .reverse(),
+		.current_picture()
 	);
 
 	task automatic wait_req(input bit wanted);
@@ -261,7 +283,7 @@ module tb_aiv_scsi_adapter;
 		for (n = 0; n < 256; n = n + 1) begin
 			read_target_byte(byte_read);
 			case (n)
-				0: if (byte_read != "P") $fatal(1, "READ F-Code status tag");
+				0: if (byte_read != "P") $fatal(1, "READ F-Code status tag: got %02x", byte_read);
 				1: if (byte_read != 8'h60) $fatal(1, "READ F-Code loaded flag");
 				2, 3: if (byte_read != 8'h41) $fatal(1, "READ F-Code CAV/frame-lock flag");
 				4, 5: if (byte_read != 8'h40) $fatal(1, "READ F-Code player flag");

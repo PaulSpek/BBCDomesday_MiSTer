@@ -87,10 +87,10 @@ reg [15:0] frame_settle = 16'd0;
 // Bring them across one parent-clock register before they control the 96 MHz
 // DDR fetch state. Raster edges are many parent cycles wide, so this removes
 // the clock-tree-skew path without changing which scanline is requested.
-reg bbc_hblank_q = 1'b1;
-reg bbc_vblank_q = 1'b1;
-reg bbc_vsync_q  = 1'b0;
-reg odd_field_q  = 1'b0;
+(* preserve *) reg bbc_hblank_q = 1'b1;
+(* preserve *) reg bbc_vblank_q = 1'b1;
+(* preserve *) reg bbc_vsync_q  = 1'b0;
+(* preserve *) reg odd_field_q  = 1'b0;
 always @(posedge clk) begin
     if (reset) begin
         bbc_hblank_q <= 1'b1;
@@ -203,8 +203,8 @@ reg [7:0] fetch_word = 8'd0;
 reg       fetch_bank = 1'b0;
 reg [26:0] fetch_base = 27'd0;
 
-reg hblank_d = 1'b1;
-reg vblank_d = 1'b1;
+(* preserve *) reg hblank_d = 1'b1;
+(* preserve *) reg vblank_d = 1'b1;
 wire hblank_rise = bbc_hblank_q & ~hblank_d;
 wire hblank_fall = ~bbc_hblank_q & hblank_d;
 wire vblank_fall = ~bbc_vblank_q & vblank_d;

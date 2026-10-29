@@ -512,3 +512,29 @@ copro RAM cell, address-line or high-memory failure under the standalone test
 pattern. Sideways RAM remains separate and had not been covered. The new
 `swram_test.rom` therefore checks writable banks 4-7, including cross-bank
 aliasing, from an engine relocated to host RAM.
+
+Sideways RAM banks 4-7 and the cross-bank isolation test also pass on version
+05. Three staged boot images then isolate the original boot path after ROOT,
+after INIT and before FCODE. The first image already hangs without displaying
+the post-ROOT checkpoint. The active failure is therefore at or before the
+first ROOT OSFILE load/return, rather than INIT, player commands, a simple
+copro-RAM fault or a simple sideways-RAM fault.
+
+### Version 06 targeted setup repair
+
+Detailed version-05 timing inspection finds two relevant critical path groups.
+The BBC raster boundary into `domesday_compositor.fetching` reaches -4.208 ns
+because Quartus removes the intended boundary/edge-history registers. Marking
+those existing registers `preserve` retains the designed parent-clock boundary
+without changing video behaviour. The `ce_48` path into the AIV SCSI adapter
+is approximately -3.65 ns because the gated enable is combined through the
+adapter command/data logic. `aiv_scsi_bus_register` now emits a one-parent-clock
+`fire_q` pulse after capturing the complete BBC transaction tuple, giving the
+adapter a full 96 MHz period while retaining one acknowledgement per BBC cycle.
+
+The CPU/SCSI ModelSim regression reproduces the legacy failure and passes all
+eight corrected cases: phases 0, 1, 7 and 15 with normal timing and an injected
+6.5 ns gated-clock delay. Every corrected run completes exactly 290/290 bus
+transactions and 256/256-byte transmit/receive transfers. Remote Quartus build
+`20261029-145449-75dccdf5` started on STUDEER at 14:54:49 from the exact
+version-05 source base plus these three hardware-file changes.

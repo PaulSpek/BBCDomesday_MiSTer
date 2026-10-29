@@ -22,16 +22,16 @@ module tb_aiv_scsi_cpu;
     wire [63:0] regs;
     reg [7:0] memory [0:65535];
     wire cs = cpu_a[15:2] == (16'hFC40 >> 2);
-    wire cs_q, strobe_q, rnw_q;
+    wire cs_q, strobe_q, fire_q, rnw_q;
     wire [1:0] addr_q;
     wire [7:0] din_q;
     aiv_scsi_bus_register scsi_bus (
         .clk(clk), .reset(!reset_n), .enable(ce48), .cs(cs), .strobe(cs && cpu_en),
         .rnw(cpu_rnw), .addr(cpu_a[1:0]), .din(cpu_do),
-        .cs_q(cs_q), .strobe_q(strobe_q), .rnw_q(rnw_q),
+        .cs_q(cs_q), .strobe_q(strobe_q), .fire_q(fire_q), .rnw_q(rnw_q),
         .addr_q(addr_q), .din_q(din_q)
     );
-    wire strobe = LEGACY_STROBE ? (cs && bus_en) : (strobe_q && ce48);
+    wire strobe = LEGACY_STROBE ? (cs && bus_en) : fire_q;
     wire adapter_cs = LEGACY_STROBE ? cs : cs_q;
     wire adapter_rnw = LEGACY_STROBE ? cpu_rnw : rnw_q;
     wire [1:0] adapter_addr = LEGACY_STROBE ? cpu_a[1:0] : addr_q;

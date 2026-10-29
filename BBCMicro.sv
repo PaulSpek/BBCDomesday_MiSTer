@@ -559,14 +559,14 @@ domesday_vfs_media domesday_vfs
 // interface. It exposes the Pi1MHz-compatible four-register boundary; the
 // command/data engine is deliberately layered behind this synchronous bus
 // interface.
-wire scsi_cs_q, scsi_strobe_q, scsi_rnw_q;
+wire scsi_cs_q, scsi_strobe_q, scsi_fire_q, scsi_rnw_q;
 wire [1:0] scsi_addr_q;
 wire [7:0] scsi_din_q;
 aiv_scsi_bus_register scsi_bus (
     .clk(clk_sys), .reset(reset | aiv_scsi_reset), .enable(ce_48),
     .cs(aiv_scsi_cs), .strobe(aiv_scsi_strobe), .rnw(aiv_scsi_rnw),
     .addr(aiv_scsi_addr), .din(aiv_scsi_din),
-    .cs_q(scsi_cs_q), .strobe_q(scsi_strobe_q), .rnw_q(scsi_rnw_q),
+    .cs_q(scsi_cs_q), .strobe_q(scsi_strobe_q), .fire_q(scsi_fire_q), .rnw_q(scsi_rnw_q),
     .addr_q(scsi_addr_q), .din_q(scsi_din_q)
 );
 aiv_scsi_adapter aiv_scsi
@@ -574,8 +574,8 @@ aiv_scsi_adapter aiv_scsi
 	.clk       (clk_sys),
 	.reset     (reset | aiv_scsi_reset),
 	.cs        (scsi_cs_q),
-	// Snapshot strobe lasts one 48 MHz cycle; consume exactly once.
-	.strobe    (scsi_strobe_q & ce_48),
+	// fire_q is a one-parent-clock pulse aligned with the captured tuple.
+	.strobe    (scsi_fire_q),
 	.rnw       (scsi_rnw_q),
 	.addr      (scsi_addr_q),
 	.din       (scsi_din_q),

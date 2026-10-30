@@ -46,9 +46,19 @@ module tb_vp415_player;
 
 	task automatic accept_and_show;
 	begin
+		for (n = 0; n < 8 && !frame_request; n = n + 1) @(posedge clk);
+		#1;
 		if (!frame_request) $fatal(1, "expected a frame request");
 		frame_request_ack = 1; @(posedge clk); #1 frame_request_ack = 0;
 		frame_presented = 1; @(posedge clk); #1 frame_presented = 0;
+	end
+	endtask
+
+	task automatic await_request;
+	begin
+		for (n = 0; n < 8 && !frame_request; n = n + 1) @(posedge clk);
+		#1;
+		if (!frame_request) $fatal(1, "timed out waiting for frame request");
 	end
 	endtask
 
@@ -67,6 +77,7 @@ module tb_vp415_player;
 
 		// Picture numbers are one based; DDV indices are zero based.
 		send({"F","0","0","1","2","3","R",8'h0d,{8{8'h00}}}, 8);
+		await_request();
 		if (!frame_request || frame_index != 122) $fatal(1, "F00123R targeted %0d", frame_index);
 		accept_and_show();
 		if (current_picture != 123 || playing) $fatal(1, "still completion state is wrong");
@@ -82,18 +93,23 @@ module tb_vp415_player;
 			endcase
 		end
 		send({"+","1","2",8'h0d,{12{8'h00}}}, 4);
+		await_request();
 		if (frame_index != 134) $fatal(1, "+12 did not request picture 135");
 		accept_and_show();
 		send({"-","1","2",8'h0d,{12{8'h00}}}, 4);
+		await_request();
 		if (frame_index != 122) $fatal(1, "-12 did not return to picture 123");
 		accept_and_show();
 
 		send({"L",8'h0d,{14{8'h00}}}, 2);
+		await_request();
 		if (frame_index != 123) $fatal(1, "step forward did not request picture 124");
 		accept_and_show();
 		send({"N",8'h0d,{14{8'h00}}}, 2);
+		await_request();
 		if (!playing || reverse || frame_index != 124) $fatal(1, "forward play did not request next frame");
 		accept_and_show();
+		await_request();
 		if (!frame_request || frame_index != 125) $fatal(1, "forward play did not continue");
 
 		// A stop-register acknowledgement is withheld until the target picture

@@ -49,6 +49,14 @@ localparam [3:0] REPLY_ACK3 = 4'd12;
 reg [7:0] command [0:15];
 reg [3:0] reply_kind = REPLY_EMPTY;
 reg [31:0] requested_picture = 32'd1;
+// Picture requests pass through two short registered stages before they reach
+// the media bridge.  Keeping operand calculation, range limiting and the
+// zero-based frame-index conversion in separate clocks avoids a long 96-MHz
+// current_picture -> frame_index carry/comparator path.
+reg [31:0] picture_candidate = 32'd1;
+reg picture_candidate_valid = 1'b0;
+reg [31:0] bounded_picture = 32'd1;
+reg bounded_picture_valid = 1'b0;
 reg awaiting_present = 1'b0;
 reg stop_ack_pending = 1'b0;
 reg [19:0] current_picture_bcd = 20'h00001;
@@ -153,14 +161,10 @@ always @* begin
 	endcase
 end
 
-task automatic request_picture(input [31:0] picture);
-	reg [31:0] bounded;
+task automatic queue_picture(input [31:0] picture);
 	begin
-		bounded = (picture < 1) ? 32'd1 : picture;
-		if (frame_count != 0 && bounded > frame_count) bounded = frame_count;
-		requested_picture <= bounded;
-		frame_index <= bounded - 1'b1;
-		frame_request <= media_present;
+		picture_candidate <= picture;
+		picture_candidate_valid <= media_present;
 	end
 endtask
 
@@ -171,6 +175,10 @@ always @(posedge clk) begin
 		frame_request <= 1'b0;
 		frame_index <= 32'd0;
 		requested_picture <= 32'd1;
+		picture_candidate <= 32'd1;
+		picture_candidate_valid <= 1'b0;
+		bounded_picture <= 32'd1;
+		bounded_picture_valid <= 1'b0;
 		awaiting_present <= 1'b0;
 		stop_ack_pending <= 1'b0;
 		vp_mode <= 3'd3;
@@ -197,9 +205,35 @@ always @(posedge clk) begin
 		end
 		if (!media_present) begin
 			frame_request <= 1'b0;
+			picture_candidate_valid <= 1'b0;
+			bounded_picture_valid <= 1'b0;
 			awaiting_present <= 1'b0;
 			playing <= 1'b0;
 			current_picture <= 32'd1;
+		end else begin
+			// Stage 2: convert the bounded one-based picture number into the
+			// bridge's zero-based frame index.  Back-pressure preserves a queued
+			// request until the bridge has acknowledged the preceding request.
+			if (bounded_picture_valid && !frame_request) begin
+				requested_picture <= bounded_picture;
+				frame_index <= bounded_picture - 1'b1;
+				frame_request <= 1'b1;
+				bounded_picture_valid <= 1'b0;
+			end
+
+			// Stage 1: clamp the requested picture to the mounted media.  This
+			// may refill stage 2 in the same clock in which it is consumed.
+			if (picture_candidate_valid &&
+			    (!bounded_picture_valid || !frame_request)) begin
+				if (picture_candidate < 1)
+					bounded_picture <= 32'd1;
+				else if (frame_count != 0 && picture_candidate > frame_count)
+					bounded_picture <= frame_count;
+				else
+					bounded_picture <= picture_candidate;
+				bounded_picture_valid <= 1'b1;
+				picture_candidate_valid <= 1'b0;
+			end
 		end
 
 		if (command_write && command_index < 16) begin
@@ -238,11 +272,11 @@ always @(posedge clk) begin
 			end
 			if (playing) begin
 				if (reverse) begin
-					if (requested_picture > 1) request_picture(requested_picture - 1'b1);
+					if (requested_picture > 1) queue_picture(requested_picture - 1'b1);
 					else playing <= 1'b0;
 				end else begin
 					if (frame_count == 0 || requested_picture < frame_count)
-						request_picture(requested_picture + 1'b1);
+						queue_picture(requested_picture + 1'b1);
 					else playing <= 1'b0;
 				end
 			end
@@ -285,25 +319,25 @@ always @(posedge clk) begin
 				playing <= 1'b1;
 				reverse <= (command[0] == "O" || command[0] == "V" || command[0] == "Z");
 				if (!frame_request && !awaiting_present)
-					request_picture((command[0] == "O" || command[0] == "V" || command[0] == "Z") ?
+					queue_picture((command[0] == "O" || command[0] == "V" || command[0] == "Z") ?
 					                ((current_picture > 1) ? current_picture - 1'b1 : 32'd1) :
 					                current_picture + 1'b1);
 			end else if (command[0] == "L") begin
 				playing <= 1'b0;
-				request_picture(current_picture + 1'b1);
+				queue_picture(current_picture + 1'b1);
 			end else if (command[0] == "M") begin
 				playing <= 1'b0;
-				request_picture((current_picture > 1) ? current_picture - 1'b1 : 32'd1);
+				queue_picture((current_picture > 1) ? current_picture - 1'b1 : 32'd1);
 			end else if (command[0] == "+" || command[0] == "-") begin
 				if (parsed_digits != 0 && parsed_number != 0) begin
 					playing <= 1'b0;
-					if (command[0] == "+") request_picture(current_picture + parsed_number);
-					else request_picture((current_picture > parsed_number) ?
+					if (command[0] == "+") queue_picture(current_picture + parsed_number);
+					else queue_picture((current_picture > parsed_number) ?
 					                     current_picture - parsed_number : 32'd1);
 				end
 			end else if (command[0] == "F") begin
 				if (parsed_digits != 0) begin
-					request_picture(parsed_number);
+					queue_picture(parsed_number);
 					case (parsed_action)
 						"I": reply_kind <= REPLY_ACK3;
 						"S": begin playing <= 1'b0; stop_ack_pending <= 1'b1; end

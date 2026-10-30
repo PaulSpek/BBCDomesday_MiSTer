@@ -273,3 +273,12 @@ hold-WNS -0,364 ns, nog steeds ongeschikt voor hardwaretest. De resterende
 commit-time parser vormde een F-codegetal met maximaal zes achter elkaar
 gesynthetiseerde `waarde*10+cijfer`-stappen. Deze wordt daarom vervangen door
 één shift/add-stap per ontvangen FC40-byte, ruim vóór command completion.
+
+De parserpass van `6447041` bracht setup-WNS terug tot -3,784 ns en
+hold-WNS tot +0,087 ns. Een gedetailleerd TimeQuest-padrapport wees daarna
+alle dertig slechtste setuppaden aan als `current_picture` naar `frame_index`
+in `vp415_player`: operandberekening, bereikbegrenzing en de omzetting van een
+één-gebaseerd beeldnummer naar een nul-gebaseerde index stonden nog in één
+96-MHz klokpad. De volgende pass registreert deze drie bewerkingen afzonderlijk.
+De extra twee klokken zijn verwaarloosbaar ten opzichte van SCSI-overdracht en
+JPEG-decode. Player-, adapter- en echte 65C02-busregressies blijven slagen.

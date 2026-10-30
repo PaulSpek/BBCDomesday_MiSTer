@@ -267,3 +267,9 @@ setup-WNS -79,259 ns doordat de vijf cijfers van `?F` met hardwaredeling en
 modulo werden gevormd. Die RBF wordt niet uitgerold. De formatter is daarna
 vervangen door een seriële 17-cycli double-dabble omzetter; een nieuwe build
 moet bevestigen dat dit kunstmatige kritieke pad verdwenen is.
+
+De vervolgpass van `a9bcea5` verbeterde dit tot setup-WNS -18,661 ns en
+hold-WNS -0,364 ns, nog steeds ongeschikt voor hardwaretest. De resterende
+commit-time parser vormde een F-codegetal met maximaal zes achter elkaar
+gesynthetiseerde `waarde*10+cijfer`-stappen. Deze wordt daarom vervangen door
+één shift/add-stap per ontvangen FC40-byte, ruim vóór command completion.

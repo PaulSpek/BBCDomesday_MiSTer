@@ -81,6 +81,12 @@ module tb_vp415_player;
 				4: if (reply_data != "3") $fatal(1, "?F units digit");
 			endcase
 		end
+		send({"+","1","2",8'h0d,{12{8'h00}}}, 4);
+		if (frame_index != 134) $fatal(1, "+12 did not request picture 135");
+		accept_and_show();
+		send({"-","1","2",8'h0d,{12{8'h00}}}, 4);
+		if (frame_index != 122) $fatal(1, "-12 did not return to picture 123");
+		accept_and_show();
 
 		send({"L",8'h0d,{14{8'h00}}}, 2);
 		if (frame_index != 123) $fatal(1, "step forward did not request picture 124");

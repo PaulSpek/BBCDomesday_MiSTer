@@ -55,8 +55,12 @@ reg [19:0] current_picture_bcd = 20'h00001;
 reg [36:0] bcd_shift = 37'd0;
 reg [4:0] bcd_steps = 5'd0;
 reg bcd_busy = 1'b0;
-reg [31:0] number;
-reg [3:0] digit_count;
+// Numeric operands are accumulated one received byte at a time.  LV-DOS
+// leaves dozens of 96-MHz clocks between FC40 transfers, so this turns the
+// former six-stage commit-time multiply chain into one shift/add per byte.
+reg [31:0] parsed_number = 32'd0;
+reg [3:0] parsed_digits = 4'd0;
+reg [7:0] parsed_action = 8'h00;
 integer i;
 
 // A serial double-dabble conversion keeps decimal query formatting out of
@@ -180,6 +184,9 @@ always @(posedge clk) begin
 		bcd_shift <= 37'd0;
 		bcd_steps <= 5'd0;
 		bcd_busy <= 1'b0;
+		parsed_number <= 32'd0;
+		parsed_digits <= 4'd0;
+		parsed_action <= 8'h00;
 	end else begin
 		if (bcd_busy) begin
 			bcd_shift <= bcd_next;
@@ -195,8 +202,24 @@ always @(posedge clk) begin
 			current_picture <= 32'd1;
 		end
 
-		if (command_write && command_index < 16)
+		if (command_write && command_index < 16) begin
 			command[command_index[3:0]] <= command_data;
+			if (command_index == 0) begin
+				parsed_number <= 32'd0;
+				parsed_digits <= 4'd0;
+				parsed_action <= 8'h00;
+			end else if ((command[0] == "F" || command[0] == "+" ||
+			              command[0] == "-" || command[0] == "S") &&
+			             parsed_action == 0) begin
+				if (command_data >= "0" && command_data <= "9") begin
+					parsed_number <= (parsed_number << 3) + (parsed_number << 1) +
+					                 command_data - "0";
+					parsed_digits <= parsed_digits + 1'b1;
+				end else if (command_data != 8'h0d && command_data != 8'h00) begin
+					parsed_action <= command_data;
+				end
+			end
+		end
 
 		if (frame_request && frame_request_ack) begin
 			frame_request <= 1'b0;
@@ -272,25 +295,16 @@ always @(posedge clk) begin
 				playing <= 1'b0;
 				request_picture((current_picture > 1) ? current_picture - 1'b1 : 32'd1);
 			end else if (command[0] == "+" || command[0] == "-") begin
-				number = 0; digit_count = 0;
-				for (i = 1; i < 3; i = i + 1)
-					if (command[i] >= "0" && command[i] <= "9") begin
-						number = number * 10 + command[i] - "0"; digit_count = digit_count + 1'b1;
-					end
-				if (digit_count != 0 && number != 0) begin
+				if (parsed_digits != 0 && parsed_number != 0) begin
 					playing <= 1'b0;
-					if (command[0] == "+") request_picture(current_picture + number);
-					else request_picture((current_picture > number) ? current_picture - number : 32'd1);
+					if (command[0] == "+") request_picture(current_picture + parsed_number);
+					else request_picture((current_picture > parsed_number) ?
+					                     current_picture - parsed_number : 32'd1);
 				end
 			end else if (command[0] == "F") begin
-				number = 0; digit_count = 0;
-				for (i = 1; i < 7; i = i + 1)
-					if (command[i] >= "0" && command[i] <= "9") begin
-						number = number * 10 + command[i] - "0"; digit_count = digit_count + 1'b1;
-					end
-				if (digit_count != 0) begin
-					request_picture(number);
-					case (command[digit_count + 1'b1])
+				if (parsed_digits != 0) begin
+					request_picture(parsed_number);
+					case (parsed_action)
 						"I": reply_kind <= REPLY_ACK3;
 						"S": begin playing <= 1'b0; stop_ack_pending <= 1'b1; end
 						"N": begin playing <= 1'b1; reverse <= 1'b0; reply_kind <= REPLY_ACK1; end
